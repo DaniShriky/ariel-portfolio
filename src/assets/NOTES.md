@@ -38,5 +38,5 @@ type MediaItem = {
   updated_at: string;
 };
 Admin panel needed (owner-only login): upload/replace/delete photos & videos, edit titles/categories, reorder items and buttons (drag-and-drop), change any cover image, set focal points, all without writing code. Storage organized with covers/ and media/ prefixes; public read, owner-only write via Row Level Security.
-Where I am: Step 1 done — Vite + React + TS project created (ariel-portfolio), src/types.ts written, folder structure set up (lib/, components/, pages/, admin/). Next: Step 2 — create the Supabase project and build the nodes and media_items tables.
-Please pick up from Step 2.
+Where I am: Step 1 done — Vite + React + TS project created (ariel-portfolio), src/types.ts written. Step 2 in progress — Supabase project created, @supabase/supabase-js installed, src/lib/supabaseClient.ts written, .env.local holds keys (git-ignored), nodes/media_items table SQL written to supabase/migrations/001_init_schema.sql (run in Supabase SQL Editor, awaiting confirmation it worked). Next: RLS policies (public read, owner-only write) once auth is in place, then component/page folders.
+Please pick up from there.

@@ -1,13 +1,14 @@
-// import { useState } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import './App.css'
+import NodePage from './pages/NodePage'
+import AdminPage from './pages/AdminPage'
 
 function App() {
-  // const [count, setCount] = useState(0)
-
   return (
-    <>
-     <div></div>
-    </>
+    <Routes>
+      <Route path="/admin" element={<AdminPage />} />
+      <Route path="*" element={<NodePage />} />
+    </Routes>
   )
 }
 
