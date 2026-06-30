@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import type { Node, MediaItem } from '../types';
 import NotFound from './NotFound';
 import Header from '../components/Header';
+import ViewLabel from '../components/ViewLabel';  
 
 function NodePage() {
   const location = useLocation();
@@ -107,7 +108,11 @@ function NodePage() {
       <>
         <Header subtitle={node?.title} />
         {children.map(child => (
-          <div key={child.id}>{child.title}</div>
+          <div className="node-container" key={child.id}>
+<div className="node-title">{child.title}</div>
+          <ViewLabel/>
+          </div>
+
         ))}
       </>
     );

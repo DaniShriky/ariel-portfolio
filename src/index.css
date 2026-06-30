@@ -63,3 +63,27 @@ body {
   flex-direction: column;
       align-items: center;
 }
+
+
+.view-label {
+  border: 1px solid white;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  width
+: fit-content;
+margin-top: 0rem
+
+}
+
+.node-container {
+  display: flex;
+  align-items: center;
+flex-direction: column;
+  justify-content: center;
+    border: 1px solid white;
+
+}
+
+.node-title {
+  font-size: 3rem;
+}
