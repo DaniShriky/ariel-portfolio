@@ -38,5 +38,13 @@ type MediaItem = {
   updated_at: string;
 };
 Admin panel needed (owner-only login): upload/replace/delete photos & videos, edit titles/categories, reorder items and buttons (drag-and-drop), change any cover image, set focal points, all without writing code. Storage organized with covers/ and media/ prefixes; public read, owner-only write via Row Level Security.
-Where I am: Step 1 done — Vite + React + TS project created (ariel-portfolio), src/types.ts written. Step 2 in progress — Supabase project created, @supabase/supabase-js installed, src/lib/supabaseClient.ts written, .env.local holds keys (git-ignored), nodes/media_items table SQL written to supabase/migrations/001_init_schema.sql (run in Supabase SQL Editor, awaiting confirmation it worked). Next: RLS policies (public read, owner-only write) once auth is in place, then component/page folders.
-Please pick up from there.
+Where I am: Core foundation complete.
+- Supabase: project created, nodes + media_items tables live, RLS policies applied (002_rls.sql). Ariel's admin user created in Supabase Auth.
+- React app: react-router-dom installed, BrowserRouter in main.tsx. Routes: /admin → AdminPage, * → NodePage.
+- NodePage: catch-all resolver walks slug segments level-by-level via parent_id+slug queries, renders menu (children as buttons) or gallery (media items), falls back to NotFound on bad path.
+- AdminPage: full login flow — getSession() on mount, onAuthStateChange listener, signInWithPassword form, error handling, logout. Working and tested.
+- Header component: Libre Barcode 128 Text font, shows "Ariel Barish" or "Ariel Barish - {node.title}". Koulen set as global font.
+- Seeded test nodes: Photo (menu, top-level), Video (menu, top-level), Portrait (gallery, child of Photo).
+
+Next: Step 3 — Supabase Storage buckets (covers/ and media/ prefixes, public read, owner-only write via RLS). Then menu page UI (full-width image buttons with cover image + focal point + VIEW box), then gallery UI, then admin panel.
+Please pick up from Step 3.
