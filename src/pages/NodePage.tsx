@@ -5,6 +5,7 @@ import type { Node, MediaItem } from '../types';
 import NotFound from './NotFound';
 import Header from '../components/Header';
 import NodeButton from '../components/NodeButton';
+import GalleryGrid from '../components/GalleryGrid';
 
 function NodePage() {
   const location = useLocation();
@@ -121,9 +122,7 @@ function NodePage() {
   return (
     <>
       <Header subtitle={node?.title} />
-      {media.map(item => (
-        <div key={item.id}>{item.title}</div>
-      ))}
+      <GalleryGrid items={media} />
     </>
   );
 }

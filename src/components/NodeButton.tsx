@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { getCoverUrl } from '../lib/mediaService';
 import type { Node } from '../types';
 import ViewLabel from './ViewLabel';
 
@@ -9,13 +9,8 @@ type Props = {
 };
 
 function NodeButton({ node, href }: Props) {
-  const mobileUrl = node.cover_path
-    ? supabase.storage.from('covers').getPublicUrl(node.cover_path).data.publicUrl
-    : null;
-
-  const desktopUrl = node.cover_path_desktop
-    ? supabase.storage.from('covers').getPublicUrl(node.cover_path_desktop).data.publicUrl
-    : null;
+  const mobileUrl = node.cover_path ? getCoverUrl(node.cover_path) : null;
+  const desktopUrl = node.cover_path_desktop ? getCoverUrl(node.cover_path_desktop) : null;
 
   const focalMobile = `${node.focal_x * 100}% ${node.focal_y * 100}%`;
   const focalDesktop = `${(node.focal_x_desktop ?? node.focal_x) * 100}% ${(node.focal_y_desktop ?? node.focal_y) * 100}%`;
