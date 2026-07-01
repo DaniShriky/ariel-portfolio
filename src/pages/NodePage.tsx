@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import type { Node, MediaItem } from '../types';
 import NotFound from './NotFound';
 import Header from '../components/Header';
-import ViewLabel from '../components/ViewLabel';  
+import NodeButton from '../components/NodeButton';
 
 function NodePage() {
   const location = useLocation();
@@ -104,16 +104,16 @@ function NodePage() {
   );
 
   if (children.length > 0) {
+    const basePath = location.pathname === '/' ? '' : location.pathname.replace(/\/$/, '');
+    const gridClass = node === null ? 'node-grid node-grid--home' : 'node-grid';
     return (
       <>
         <Header subtitle={node?.title} />
-        {children.map(child => (
-          <div className="node-container" key={child.id}>
-<div className="node-title">{child.title}</div>
-          <ViewLabel/>
-          </div>
-
-        ))}
+        <div className={gridClass}>
+          {children.map(child => (
+            <NodeButton key={child.id} node={child} href={`${basePath}/${child.slug}`} />
+          ))}
+        </div>
       </>
     );
   }
