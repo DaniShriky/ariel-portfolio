@@ -10,10 +10,12 @@ function App() {
   return (
     <AdminModeProvider>
       <AdminToolbar />
-      <Routes>
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="*" element={<NodePage />} />
-      </Routes>
+      <div className="page-content">
+        <Routes>
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="*" element={<NodePage />} />
+        </Routes>
+      </div>
       <Toaster position="bottom-right" />
     </AdminModeProvider>
   );

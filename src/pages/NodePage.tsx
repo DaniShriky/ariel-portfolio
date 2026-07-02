@@ -1,29 +1,65 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { useAdminMode } from '../context/AdminModeContext';
+import {
+  DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { supabase } from '../lib/supabaseClient';
-import type { Node, MediaItem } from '../types';
+import type { Node } from '../types';
 import NotFound from './NotFound';
 import Header from '../components/Header';
-import NodeButton from '../components/NodeButton';
+import SortableNodeButton from '../components/SortableNodeButton';
 import GalleryGrid from '../components/GalleryGrid';
 
+function toSlug(title: string) {
+  return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/, '');
+}
+
 function NodePage() {
-  const location = useLocation();
+  const location    = useLocation();
+  const { isAdmin } = useAdminMode();
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
   const slugSegments = location.pathname.split('/').filter(s => s !== '');
 
-  const [status, setStatus] = useState<'loading' | 'not_found' | 'ready'>('loading');
-  const [node, setNode] = useState<Node | null>(null);
+  const [status, setStatus]     = useState<'loading' | 'not_found' | 'ready'>('loading');
+  const [node, setNode]         = useState<Node | null>(null);
   const [children, setChildren] = useState<Node[]>([]);
-  const [media, setMedia] = useState<MediaItem[]>([]);
+
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newTitle, setNewTitle]             = useState('');
+  const [newKind, setNewKind]               = useState<'gallery' | 'menu'>('gallery');
+  const [adding, setAdding]                 = useState(false);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  );
+
+  // focus input when modal opens
+  useEffect(() => {
+    if (addingCategory) titleInputRef.current?.focus();
+  }, [addingCategory]);
+
+  // Escape key closes the modal
+  useEffect(() => {
+    if (!addingCategory) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelAdd(); };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [addingCategory]);
 
   useEffect(() => {
     async function resolve() {
       setStatus('loading');
       setNode(null);
       setChildren([]);
-      setMedia([]);
+      setAddingCategory(false);
+      setNewTitle('');
 
-      // Walk the slug segments one by one, querying one level at a time
       let parentId: string | null = null;
       let currentNode: Node | null = null;
 
@@ -41,47 +77,26 @@ function NodePage() {
           stepError = res.error;
         }
 
-        if (stepError || !stepData) {
-          setStatus('not_found');
-          return;
-        }
-
+        if (stepError || !stepData) { setStatus('not_found'); return; }
         currentNode = stepData;
         parentId = stepData.id;
       }
 
-      // No slugs = home page: fetch all top-level nodes
       if (currentNode === null) {
         const { data, error } = await supabase
-          .from('nodes')
-          .select('*')
-          .is('parent_id', null)
-          .order('sort_order');
-
+          .from('nodes').select('*').is('parent_id', null).order('sort_order');
         if (error || !data) { setStatus('not_found'); return; }
         setChildren(data as Node[]);
 
       } else if (currentNode.kind === 'menu') {
         const { data, error } = await supabase
-          .from('nodes')
-          .select('*')
-          .eq('parent_id', currentNode.id)
-          .order('sort_order');
-
+          .from('nodes').select('*').eq('parent_id', currentNode.id).order('sort_order');
         if (error || !data) { setStatus('not_found'); return; }
         setNode(currentNode);
         setChildren(data as Node[]);
 
       } else {
-        const { data, error } = await supabase
-          .from('media_items')
-          .select('*')
-          .eq('node_id', currentNode.id)
-          .order('sort_order');
-
-        if (error || !data) { setStatus('not_found'); return; }
         setNode(currentNode);
-        setMedia(data as MediaItem[]);
       }
 
       setStatus('ready');
@@ -89,6 +104,91 @@ function NodePage() {
 
     resolve();
   }, [location.pathname]);
+
+  // ── drag-to-reorder ──────────────────────────────────────────────────────
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+    setChildren(prev => {
+      const oldIndex = prev.findIndex(n => n.id === active.id);
+      const newIndex = prev.findIndex(n => n.id === over.id);
+      const reordered = arrayMove(prev, oldIndex, newIndex);
+      saveSortOrder(reordered);
+      return reordered;
+    });
+  }
+
+  async function saveSortOrder(ordered: Node[]) {
+    await Promise.all(
+      ordered.map((n, i) =>
+        supabase.from('nodes').update({ sort_order: i }).eq('id', n.id)
+      )
+    );
+  }
+
+  // ── delete category ───────────────────────────────────────────────────────
+
+  async function handleDeleteCategory(category: Node) {
+    await supabase.from('media_items').delete().eq('node_id', category.id);
+    const { error } = await supabase.from('nodes').delete().eq('id', category.id);
+    if (error) throw error;
+    setChildren(prev => prev.filter(c => c.id !== category.id));
+    toast.success(`"${category.title}" deleted`);
+  }
+
+  // ── add category ─────────────────────────────────────────────────────────
+
+  function cancelAdd() {
+    setAddingCategory(false);
+    setNewTitle('');
+    setNewKind('gallery');
+  }
+
+  async function handleAddCategory() {
+    const title = newTitle.trim();
+    if (!title) return;
+    setAdding(true);
+    try {
+      const slug      = toSlug(title);
+      const parentId  = node?.id ?? null;
+      const sortOrder = children.length > 0
+        ? Math.max(...children.map(c => c.sort_order)) + 1
+        : 0;
+
+      const { data, error } = await supabase
+        .from('nodes')
+        .insert({
+          title,
+          slug,
+          kind: newKind,
+          parent_id: parentId,
+          sort_order: sortOrder,
+          is_published: true,
+          focal_x: 0.5,
+          focal_y: 0.5,
+          metadata: {},
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setChildren(prev => [...prev, data as Node]);
+      cancelAdd();
+      toast.success(`"${title}" added`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      toast.error(msg.includes('unique') ? 'A category with that name already exists' : 'Failed to add category');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter')  { e.preventDefault(); handleAddCategory(); }
+    if (e.key === 'Escape') cancelAdd();
+  }
+
+  // ── render ───────────────────────────────────────────────────────────────
 
   if (status === 'loading') return (
     <>
@@ -104,25 +204,86 @@ function NodePage() {
     </>
   );
 
-  if (children.length > 0) {
-    const basePath = location.pathname === '/' ? '' : location.pathname.replace(/\/$/, '');
-    const gridClass = node === null ? 'node-grid node-grid--home' : 'node-grid';
+  // Gallery node → always show image grid
+  if (node?.kind === 'gallery') {
     return (
       <>
-        <Header subtitle={node?.title} />
-        <div className={gridClass}>
-          {children.map(child => (
-            <NodeButton key={child.id} node={child} href={`${basePath}/${child.slug}`} />
-          ))}
-        </div>
+        <Header subtitle={node.title} />
+        <GalleryGrid nodeId={node.id} />
       </>
     );
   }
 
+  // Home page or menu node → category grid
+  const basePath  = location.pathname === '/' ? '' : location.pathname.replace(/\/$/, '');
+  const gridClass = node === null ? 'node-grid node-grid--home' : 'node-grid';
+
   return (
     <>
       <Header subtitle={node?.title} />
-      <GalleryGrid items={media} />
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={children.map(c => c.id)} strategy={rectSortingStrategy}>
+          <div className={gridClass}>
+            {children.map(child => (
+              <SortableNodeButton
+                key={child.id}
+                node={child}
+                href={`${basePath}/${child.slug}`}
+                onDelete={() => handleDeleteCategory(child)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+
+      {/* Floating + button */}
+      {isAdmin && (
+        <button
+          className="add-floating-btn"
+          onClick={() => setAddingCategory(true)}
+          title="Add category"
+        >
+          +
+        </button>
+      )}
+
+      {/* Add category modal */}
+      {addingCategory && (
+        <div className="modal-backdrop" onClick={cancelAdd}>
+          <div className="modal-panel" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">Add category</p>
+            <input
+              ref={titleInputRef}
+              className="add-category-input"
+              placeholder="Category name"
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={handleTitleKeyDown}
+              disabled={adding}
+            />
+            <div className="add-kind-toggle">
+              <button
+                className={`add-kind-btn${newKind === 'gallery' ? ' add-kind-btn--active' : ''}`}
+                onClick={() => setNewKind('gallery')}
+              >
+                Gallery
+              </button>
+              <button
+                className={`add-kind-btn${newKind === 'menu' ? ' add-kind-btn--active' : ''}`}
+                onClick={() => setNewKind('menu')}
+              >
+                Menu
+              </button>
+            </div>
+            <div className="add-category-actions">
+              <button className="add-category-cancel" onClick={cancelAdd} disabled={adding}>Cancel</button>
+              <button className="add-category-save" onClick={handleAddCategory} disabled={!newTitle.trim() || adding}>
+                {adding ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
