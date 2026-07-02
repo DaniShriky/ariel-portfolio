@@ -85,6 +85,8 @@ body {
   font-family: 'Libre Barcode 128 Text', cursive;
   font-size: 2rem;
   color: var(--text-h);
+  word-spacing: 0;
+  letter-spacing: 0;
 }
 
 

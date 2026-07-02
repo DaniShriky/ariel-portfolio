@@ -28,6 +28,7 @@ function NodePage() {
   const [status, setStatus]     = useState<'loading' | 'not_found' | 'ready'>('loading');
   const [node, setNode]         = useState<Node | null>(null);
   const [children, setChildren] = useState<Node[]>([]);
+  const hasLoadedRef = useRef(false); // stays true after first successful load
 
   const [addingCategory, setAddingCategory] = useState(false);
   const [newTitle, setNewTitle]             = useState('');
@@ -55,10 +56,9 @@ function NodePage() {
   useEffect(() => {
     async function resolve() {
       setStatus('loading');
-      setNode(null);
-      setChildren([]);
       setAddingCategory(false);
       setNewTitle('');
+      // keep node/children from previous page so the header doesn't flash during navigation
 
       let parentId: string | null = null;
       let currentNode: Node | null = null;
@@ -86,6 +86,7 @@ function NodePage() {
         const { data, error } = await supabase
           .from('nodes').select('*').is('parent_id', null).order('sort_order');
         if (error || !data) { setStatus('not_found'); return; }
+        setNode(null);
         setChildren(data as Node[]);
 
       } else if (currentNode.kind === 'menu') {
@@ -99,6 +100,7 @@ function NodePage() {
         setNode(currentNode);
       }
 
+      hasLoadedRef.current = true;
       setStatus('ready');
     }
 
@@ -190,9 +192,18 @@ function NodePage() {
 
   // ── render ───────────────────────────────────────────────────────────────
 
-  if (status === 'loading') return (
+  // Derive a tentative title from the URL so the header shows the right text
+  // immediately on refresh, before Supabase responds.
+  const lastSlug = slugSegments[slugSegments.length - 1];
+  const tentativeTitle = lastSlug
+    ? lastSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    : undefined;
+
+  // Only show the spinner on the very first page load — on navigation keep
+  // rendering the previous content so the layout never jumps position.
+  if (status === 'loading' && !hasLoadedRef.current) return (
     <>
-      <Header />
+      <Header subtitle={tentativeTitle} />
       <div className="spinner" />
     </>
   );
