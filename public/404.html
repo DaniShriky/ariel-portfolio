@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // SPA redirect: store path in sessionStorage, then redirect to root
+      var l = window.location;
+      sessionStorage.redirect = l.pathname + l.search + l.hash;
+      l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + l.pathname.split('/').slice(0, 2).join('/'));
+    </script>
+  </head>
+  <body></body>
+</html>

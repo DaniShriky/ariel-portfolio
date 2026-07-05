@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node verify_gallery.mjs)",
+      "Bash(curl -s \"https://fgnepakziksbjwetthnm.supabase.co/rest/v1/nodes?select=title,slug,is_published&slug=eq.home-styling\" -H \"apikey: sb_publishable_l5uhL30J7xUgpca7fwzNCQ_mJvRsTl9\")",
+      "Bash(curl -s \"https://fgnepakziksbjwetthnm.supabase.co/rest/v1/media_items?select=id,node_id,type,storage_path,metadata&limit=5\" -H \"apikey: sb_publishable_l5uhL30J7xUgpca7fwzNCQ_mJvRsTl9\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/photo/home-styling)",
+      "Bash(curl -s http://localhost:5173/photo/home-styling)",
+      "Bash(SCRATCH=\"/c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad\" *)",
+      "Bash(curl -s \"https://fgnepakziksbjwetthnm.supabase.co/rest/v1/media_items?select=id,storage_path&node_id=eq.89c1f5fa-13d5-4bd9-bf41-cddfce139af4\" -H \"apikey: sb_publishable_l5uhL30J7xUgpca7fwzNCQ_mJvRsTl9\")",
+      "Bash(curl -s \"https://fgnepakziksbjwetthnm.supabase.co/rest/v1/media_items?select=node_id&limit=1000\" -H \"apikey: sb_publishable_l5uhL30J7xUgpca7fwzNCQ_mJvRsTl9\")",
+      "Bash(node -e ' *)",
+      "Bash(sed -i 's#/photo/home-styling#/photo/street/krakow#g' /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/verify_gallery.mjs)",
+      "Bash(curl -s 'https://fgnepakziksbjwetthnm.supabase.co/storage/v1/render/image/public/media/cd5078f6-689e-4111-a392-a6ae570f49bc.jpg?width=800&height=800&resize=contain&quality=85' -o /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_transformed.jpg)",
+      "Bash(curl -s -r 0-131071 https://fgnepakziksbjwetthnm.supabase.co/storage/v1/object/public/media/cd5078f6-689e-4111-a392-a6ae570f49bc.jpg -o /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_orig_head.jpg)",
+      "Bash(node /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/jpegsize.js x /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_transformed.jpg)",
+      "Bash(node /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/jpegsize.js x /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_orig_head.jpg)",
+      "Bash(node /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/jpegsize.js /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_transformed.jpg /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_transformed.jpg)",
+      "Bash(node /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/jpegsize.js /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_orig_head.jpg /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/rot_orig_head.jpg)",
+      "Bash(curl -s \"https://fgnepakziksbjwetthnm.supabase.co/rest/v1/media_items?select=id,storage_path,sort_order&node_id=eq.101cdf14-82cd-4b4a-b959-9bffcd8eccba&order=sort_order\" -H \"apikey: sb_publishable_l5uhL30J7xUgpca7fwzNCQ_mJvRsTl9\")",
+      "Bash(curl -s 'https://fgnepakziksbjwetthnm.supabase.co/storage/v1/render/image/public/media/1932d01c-d2d7-4064-8b6f-0612210ee267.jpg?width=500&height=500&resize=contain&quality=85' -o /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/check_transformed.jpg)",
+      "Bash(curl -s -r 0-200000 https://fgnepakziksbjwetthnm.supabase.co/storage/v1/object/public/media/1932d01c-d2d7-4064-8b6f-0612210ee267.jpg -o /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/check_orig_head.jpg)",
+      "Bash(node /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/jpegsize.js /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/check_transformed.jpg /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/check_transformed.jpg)",
+      "Bash(node /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/jpegsize.js /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/check_orig_head.jpg /c/Users/ramir/AppData/Local/Temp/claude/c--Users-ramir-Desktop-ariel-portfolio/c3bb0c27-aa47-4343-b1f1-a8c68273632e/scratchpad/check_orig_head.jpg)",
+      "Bash(node verify_lightbox2.mjs)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\ramir\\AppData\\Local\\Temp\\claude\\c--Users-ramir-Desktop-ariel-portfolio\\c3bb0c27-aa47-4343-b1f1-a8c68273632e\\scratchpad"
+    ]
+  }
+}
