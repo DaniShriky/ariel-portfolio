@@ -92,11 +92,12 @@ function computeGeometry(aspectRatios: number[], containerWidth: number): { boxe
       });
     } else if (row.length === 1) {
       // Truly no partner: width is a fixed fraction of the container, height
-      // follows from its own aspect ratio — uncropped.
+      // follows from its own aspect ratio — uncropped. Centered, since it's
+      // not flush against either edge of a shared row.
       const ratio = aspectRatios[row[0]];
       const width = containerWidth * SOLO_WIDTH_FRACTION;
       const height = width / ratio;
-      boxes[row[0]] = { top, left: 0, width, height };
+      boxes[row[0]] = { top, left: (containerWidth - width) / 2, width, height };
       rowHeight = height;
     } else {
       // A 1-2 portrait remainder that still has a partner, just not a third:
