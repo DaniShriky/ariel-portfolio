@@ -14,10 +14,12 @@ import type { MediaItem } from '../types';
 // height), per the mobile spec.
 
 const MOBILE_BREAKPOINT = 768;
-// Max width AND height for a row that doesn't fill (a lone image, or a 1-2
-// portrait remainder) — each image fits inside this NxN box at its own true
-// aspect ratio (like object-fit: contain), so a lone landscape and a lone
-// portrait read as similarly sized instead of one being much bigger.
+// A truly solo image (no partner at all) is sized to this fraction of the
+// container width, height following from its own aspect ratio — uncropped.
+const SOLO_WIDTH_FRACTION = 0.8;
+// Max width AND height for a row of 2 that doesn't fill (a 1-2 portrait
+// remainder that still has a partner, just not a third) — each image fits
+// inside this NxN box at its own true aspect ratio (object-fit: contain).
 const LONE_BOX_SIZE = 300;
 const BOX_SPACING = 12;
 const FALLBACK_ASPECT_RATIO = 1.5; // used only until a legacy item's real dimensions are measured
@@ -88,10 +90,18 @@ function computeGeometry(aspectRatios: number[], containerWidth: number): { boxe
         boxes[idx] = { top, left, width, height: rowHeight };
         left += width + (i < row.length - 1 ? BOX_SPACING : 0);
       });
+    } else if (row.length === 1) {
+      // Truly no partner: width is a fixed fraction of the container, height
+      // follows from its own aspect ratio — uncropped.
+      const ratio = aspectRatios[row[0]];
+      const width = containerWidth * SOLO_WIDTH_FRACTION;
+      const height = width / ratio;
+      boxes[row[0]] = { top, left: 0, width, height };
+      rowHeight = height;
     } else {
-      // Doesn't fill: each image fits its own aspect ratio inside the same
-      // LONE_BOX_SIZE x LONE_BOX_SIZE box, uncropped — not stretched to the
-      // container width.
+      // A 1-2 portrait remainder that still has a partner, just not a third:
+      // each fits its own aspect ratio inside the same LONE_BOX_SIZE x
+      // LONE_BOX_SIZE box, uncropped — not stretched to the container width.
       row.forEach((idx, i) => {
         const ratio = aspectRatios[idx];
         const width = Math.min(LONE_BOX_SIZE, LONE_BOX_SIZE * ratio);
