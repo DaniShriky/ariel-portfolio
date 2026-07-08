@@ -526,9 +526,12 @@ flex-direction: column;
 
 /* Collage: masonry columns, same technique as .featured-work__grid — lets
    landscape (short-wide) and portrait (tall) images sit side by side in
-   parallel columns instead of landscape forcing its own full-width row. */
+   parallel columns instead of landscape forcing its own full-width row.
+   Stays multi-column on mobile too (2 columns) so it still reads as a
+   collage there, rather than collapsing to the same single-column stack
+   Justified Gallery uses on small screens. */
 .gallery-grid--collage {
-  columns: 1;
+  columns: 2;
   column-gap: 12px;
 }
 
