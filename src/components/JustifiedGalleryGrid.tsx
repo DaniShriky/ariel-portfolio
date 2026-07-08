@@ -14,7 +14,11 @@ import type { MediaItem } from '../types';
 // height), per the mobile spec.
 
 const MOBILE_BREAKPOINT = 768;
-const TARGET_ROW_HEIGHT = 300;
+// Max width AND height for a row that doesn't fill (a lone image, or a 1-2
+// portrait remainder) — each image fits inside this NxN box at its own true
+// aspect ratio (like object-fit: contain), so a lone landscape and a lone
+// portrait read as similarly sized instead of one being much bigger.
+const LONE_BOX_SIZE = 300;
 const BOX_SPACING = 12;
 const FALLBACK_ASPECT_RATIO = 1.5; // used only until a legacy item's real dimensions are measured
 
@@ -23,21 +27,29 @@ function isLandscape(aspectRatio: number): boolean {
 }
 
 // Groups item indexes into rows: runs of portraits are chunked into groups
-// of up to 3; a landscape pairs with the very next item if that's a
-// portrait, otherwise it stands alone (never grouped with another landscape).
+// of up to 3; a landscape pairs with whichever neighbor comes immediately
+// after it if that neighbor is a portrait, and likewise a portrait pairs
+// with an immediately-following landscape — the pairing works in either
+// order, so which image lands on the left vs. right of the row is just
+// whichever comes first in the gallery's own order (drag-reorder or the
+// position number already controls that). Two landscapes never share a row.
 function groupIntoRows(aspectRatios: number[]): number[][] {
   const rows: number[][] = [];
   let i = 0;
   while (i < aspectRatios.length) {
-    if (isLandscape(aspectRatios[i])) {
-      if (i + 1 < aspectRatios.length && !isLandscape(aspectRatios[i + 1])) {
-        rows.push([i, i + 1]);
-        i += 2;
-      } else {
-        rows.push([i]);
-        i += 1;
-      }
+    const currentIsLandscape = isLandscape(aspectRatios[i]);
+    const nextIsLandscape = i + 1 < aspectRatios.length ? isLandscape(aspectRatios[i + 1]) : null;
+
+    if (nextIsLandscape !== null && currentIsLandscape !== nextIsLandscape) {
+      // One landscape + one portrait, in whatever order they actually appear.
+      rows.push([i, i + 1]);
+      i += 2;
+    } else if (currentIsLandscape) {
+      // No portrait to pair with (end of list, or the next one is also landscape).
+      rows.push([i]);
+      i += 1;
     } else {
+      // Gather a run of up to 3 consecutive portraits.
       const group = [i];
       let j = i + 1;
       while (j < aspectRatios.length && !isLandscape(aspectRatios[j]) && group.length < 3) {
@@ -64,18 +76,32 @@ function computeGeometry(aspectRatios: number[], containerWidth: number): { boxe
     const isLandscapePortraitPair = row.length === 2 && isLandscape(ratios[0]) !== isLandscape(ratios[1]);
     const fillsRow = isThreePortraits || isLandscapePortraitPair;
 
-    const sumRatios = ratios.reduce((a, b) => a + b, 0);
-    const totalSpacing = (row.length - 1) * BOX_SPACING;
-    const rowHeight = fillsRow
-      ? (containerWidth - totalSpacing) / sumRatios
-      : TARGET_ROW_HEIGHT;
-
     let left = 0;
-    row.forEach((idx, i) => {
-      const width = rowHeight * aspectRatios[idx];
-      boxes[idx] = { top, left, width, height: rowHeight };
-      left += width + (i < row.length - 1 ? BOX_SPACING : 0);
-    });
+    let rowHeight = 0;
+
+    if (fillsRow) {
+      const sumRatios = ratios.reduce((a, b) => a + b, 0);
+      const totalSpacing = (row.length - 1) * BOX_SPACING;
+      rowHeight = (containerWidth - totalSpacing) / sumRatios;
+      row.forEach((idx, i) => {
+        const width = rowHeight * aspectRatios[idx];
+        boxes[idx] = { top, left, width, height: rowHeight };
+        left += width + (i < row.length - 1 ? BOX_SPACING : 0);
+      });
+    } else {
+      // Doesn't fill: each image fits its own aspect ratio inside the same
+      // LONE_BOX_SIZE x LONE_BOX_SIZE box, uncropped — not stretched to the
+      // container width.
+      row.forEach((idx, i) => {
+        const ratio = aspectRatios[idx];
+        const width = Math.min(LONE_BOX_SIZE, LONE_BOX_SIZE * ratio);
+        const height = Math.min(LONE_BOX_SIZE, LONE_BOX_SIZE / ratio);
+        boxes[idx] = { top, left, width, height };
+        left += width + (i < row.length - 1 ? BOX_SPACING : 0);
+        rowHeight = Math.max(rowHeight, height);
+      });
+    }
+
     top += rowHeight + BOX_SPACING;
   }
 
