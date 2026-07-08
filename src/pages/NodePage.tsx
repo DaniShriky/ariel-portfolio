@@ -14,7 +14,7 @@ import Header from '../components/Header';
 import SortableNodeButton from '../components/SortableNodeButton';
 import GalleryGrid from '../components/GalleryGrid';
 import FeaturedWork from '../components/FeaturedWork';
-import AboutSection from '../components/AboutSection';
+import HomeIntro from '../components/HomeIntro';
 import ContactCTA from '../components/ContactCTA';
 
 function toSlug(title: string) {
@@ -237,6 +237,22 @@ function NodePage() {
   return (
     <>
       <Header subtitle={node?.title} />
+
+      {node === null && <HomeIntro />}
+
+      {/* Home-only: sits above the hero so it never covers the tiles, and scrolls away with the page */}
+      {isAdmin && node === null && (
+        <div className="home-hero-toolbar">
+          <button
+            className="add-floating-btn add-floating-btn--home"
+            onClick={() => setAddingCategory(true)}
+            title="Add category"
+          >
+            +
+          </button>
+        </div>
+      )}
+
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={children.map(c => c.id)} strategy={rectSortingStrategy}>
           <div className={gridClass} id={node === null ? 'home-hero' : undefined}>
@@ -255,13 +271,12 @@ function NodePage() {
       {node === null && (
         <>
           <FeaturedWork />
-          <AboutSection />
           <ContactCTA />
         </>
       )}
 
-      {/* Floating + button */}
-      {isAdmin && (
+      {/* Floating + button (menu pages only — home has its own in-hero version above) */}
+      {isAdmin && node !== null && (
         <button
           className="add-floating-btn"
           onClick={() => setAddingCategory(true)}
