@@ -1271,7 +1271,9 @@ flex-direction: column;
   height: auto;
 }
 
-/* image/video caption — mobile: always visible; desktop: hover-reveal.
+/* image/video caption on the grid thumbnail — hover-reveal only. On touch
+   devices (no hover) it never appears here at all; the description still
+   shows in the Lightbox once the image is opened.
    pointer-events:none so it never blocks the tap-to-open-lightbox gesture. */
 .gallery-item-caption {
   position: absolute;
@@ -1285,16 +1287,12 @@ flex-direction: column;
   color: rgba(255, 255, 255, 0.92);
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-@media (min-width: 768px) {
-  .gallery-item-caption {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-  .gallery-item:hover .gallery-item-caption {
-    opacity: 1;
-  }
+.gallery-item:hover .gallery-item-caption {
+  opacity: 1;
 }
 
 /* ── Lightbox ── */
