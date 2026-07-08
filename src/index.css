@@ -550,26 +550,38 @@ flex-direction: column;
   }
 }
 
-/* Grid: uniform evenly-sized cells, cropped to fill via object-fit. */
-.gallery-grid--grid {
-  display: grid;
-  grid-template-columns: 1fr;
+/* Single Image: a true justified-row layout — every image keeps its own
+   natural aspect ratio (no square cropping), rows share a fixed height, and
+   flex-grow stretches each row to fill the full width, which is what lets a
+   wide landscape image and a narrow portrait share the same row instead of
+   landscape forcing a full-width row of its own. Any resulting sliver of
+   object-fit cropping is just enough to close each row flush — not a crop
+   grid. This is the standard CSS-only approximation of a justified gallery
+   (Flickr/Google Photos-style); the one trade-off is a sparse last row can
+   stretch a bit more than a full row, since that needs JS to avoid entirely. */
+.gallery-grid--single {
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
+.gallery-grid--single .gallery-item {
+  height: 220px;
+  flex-grow: 1;
+}
+
 @media (min-width: 768px) {
-  .gallery-grid--grid {
-    grid-template-columns: repeat(3, 1fr);
+  .gallery-grid--single {
     gap: 16px;
+  }
+  .gallery-grid--single .gallery-item {
+    height: 320px;
   }
 }
 
-.gallery-grid--grid .gallery-item {
-  aspect-ratio: 1;
-}
-
-.gallery-grid--grid .gallery-img,
-.gallery-grid--grid .gallery-video {
+.gallery-grid--single .gallery-img,
+.gallery-grid--single .gallery-video {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;

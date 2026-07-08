@@ -23,7 +23,13 @@ import type { MediaItem, Node } from '../types';
 import Lightbox from './Lightbox';
 import DescriptionModal from './DescriptionModal';
 
-type GalleryLayout = 'collage' | 'grid';
+type GalleryLayout = 'collage' | 'single';
+
+// "Street" category (Photo > Street) — its galleries (tlv, thailand, krakow,
+// and any added later) default to Collage; every other gallery defaults to
+// Single Image. Only matters when a gallery has no explicit metadata.layout
+// saved yet — admins can always override either way.
+const STREET_NODE_ID = '62e62076-55d0-495e-be79-f210067ecec0';
 
 // ── Per-item component ────────────────────────────────────────────────────────
 
@@ -221,9 +227,14 @@ function GalleryGrid({ node }: Props) {
   const [localLayout, setLocalLayout]         = useState<GalleryLayout | null>(null);
   const [savingLayout, setSavingLayout]       = useState(false);
 
-  const layout: GalleryLayout = localLayout
-    ?? ((node.metadata as { layout?: GalleryLayout } | undefined)?.layout)
-    ?? 'collage';
+  const defaultLayout: GalleryLayout = node.parent_id === STREET_NODE_ID ? 'collage' : 'single';
+  // Only trust an explicit 'collage'/'single' value — a handful of galleries
+  // still carry a stale 'grid' from an earlier square-crop layout that's been
+  // removed; treat anything unrecognized as unset and fall through to the default.
+  const storedLayout = (node.metadata as { layout?: string } | undefined)?.layout;
+  const validStoredLayout: GalleryLayout | undefined =
+    storedLayout === 'collage' || storedLayout === 'single' ? storedLayout : undefined;
+  const layout: GalleryLayout = localLayout ?? validStoredLayout ?? defaultLayout;
 
   useEffect(() => {
     setLoading(true);
@@ -402,7 +413,7 @@ function GalleryGrid({ node }: Props) {
     }
   }
 
-  // ── Layout (Collage / Grid) ──────────────────────────────────────────────
+  // ── Layout (Collage / Single Image) ──────────────────────────────────────
 
   async function handleSetLayout(next: GalleryLayout) {
     if (next === layout) return;
@@ -412,7 +423,7 @@ function GalleryGrid({ node }: Props) {
       const { error } = await supabase.from('nodes').update({ metadata: newMetadata }).eq('id', node.id);
       if (error) throw error;
       setLocalLayout(next);
-      toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Grid'} view`);
+      toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Single Image'} view`);
     } catch {
       toast.error('Failed to update layout');
     } finally {
@@ -436,11 +447,11 @@ function GalleryGrid({ node }: Props) {
             Collage
           </button>
           <button
-            className={`gallery-layout-btn${layout === 'grid' ? ' gallery-layout-btn--active' : ''}`}
-            onClick={() => handleSetLayout('grid')}
+            className={`gallery-layout-btn${layout === 'single' ? ' gallery-layout-btn--active' : ''}`}
+            onClick={() => handleSetLayout('single')}
             disabled={savingLayout}
           >
-            Grid
+            Single Image
           </button>
         </div>
       )}
