@@ -419,18 +419,24 @@ function GalleryGrid({ node }: Props) {
   }
 
   // ── Layout (Collage / Justified Gallery) ─────────────────────────────────
+  // The toggle is visible to every visitor, not just admins — anyone can
+  // switch their own view instantly. Only an admin's choice also persists to
+  // the gallery's metadata, becoming the default every future visitor sees.
 
   async function handleSetLayout(next: GalleryLayout) {
     if (next === layout) return;
+    setLocalLayout(next); // instant, for everyone — no network round trip needed to change your own view
+
+    if (!isAdmin) return;
+
     setSavingLayout(true);
     try {
       const newMetadata = { ...node.metadata, layout: next };
       const { error } = await supabase.from('nodes').update({ metadata: newMetadata }).eq('id', node.id);
       if (error) throw error;
-      setLocalLayout(next);
       toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Justified Gallery'} view`);
     } catch {
-      toast.error('Failed to update layout');
+      toast.error('Failed to save layout as default');
     } finally {
       setSavingLayout(false);
     }
@@ -467,24 +473,22 @@ function GalleryGrid({ node }: Props) {
 
   return (
     <div>
-      {isAdmin && (
-        <div className="gallery-layout-toggle">
-          <button
-            className={`gallery-layout-btn${layout === 'collage' ? ' gallery-layout-btn--active' : ''}`}
-            onClick={() => handleSetLayout('collage')}
-            disabled={savingLayout}
-          >
-            Collage
-          </button>
-          <button
-            className={`gallery-layout-btn${layout === 'justified' ? ' gallery-layout-btn--active' : ''}`}
-            onClick={() => handleSetLayout('justified')}
-            disabled={savingLayout}
-          >
-            Justified Gallery
-          </button>
-        </div>
-      )}
+      <div className="gallery-layout-toggle">
+        <button
+          className={`gallery-layout-btn${layout === 'collage' ? ' gallery-layout-btn--active' : ''}`}
+          onClick={() => handleSetLayout('collage')}
+          disabled={savingLayout}
+        >
+          Collage
+        </button>
+        <button
+          className={`gallery-layout-btn${layout === 'justified' ? ' gallery-layout-btn--active' : ''}`}
+          onClick={() => handleSetLayout('justified')}
+          disabled={savingLayout}
+        >
+          Justified Gallery
+        </button>
+      </div>
 
       <DndContext
         sensors={sensors}

@@ -1,19 +1,86 @@
 import { useEffect, useRef, useState } from 'react';
-import justifiedLayout from 'justified-layout';
 import { getMediaUrl } from '../lib/mediaService';
 import type { MediaItem } from '../types';
 
-// A real justified/Flickr-style gallery: solves for the row height that makes
-// each row's images (at their own true aspect ratio) sum to exactly the
-// container width, so rows are flush on both edges with zero cropping —
-// unlike a fixed-height + object-fit:cover approximation. Below 768px this
-// is skipped entirely in favor of a simple single-column stack per the
-// mobile spec (one image per row, full width, natural height).
+// A justified gallery with a deliberately constrained row shape (per spec):
+// on desktop, a row is either three portrait images, or exactly one
+// landscape paired with one portrait — never two landscapes sharing a row.
+// Each row's height is solved so its images, at their own true aspect
+// ratio, sum to exactly the container width: flush edges, zero cropping.
+// A row that doesn't match one of those two shapes (a lone image, or a
+// trailing remainder of 1-2 portraits) renders at natural size instead of
+// being stretched to fill. Below 768px this is skipped entirely in favor of
+// a simple single-column stack (one image per row, full width, natural
+// height), per the mobile spec.
 
 const MOBILE_BREAKPOINT = 768;
 const TARGET_ROW_HEIGHT = 300;
 const BOX_SPACING = 12;
 const FALLBACK_ASPECT_RATIO = 1.5; // used only until a legacy item's real dimensions are measured
+
+function isLandscape(aspectRatio: number): boolean {
+  return aspectRatio >= 1;
+}
+
+// Groups item indexes into rows: runs of portraits are chunked into groups
+// of up to 3; a landscape pairs with the very next item if that's a
+// portrait, otherwise it stands alone (never grouped with another landscape).
+function groupIntoRows(aspectRatios: number[]): number[][] {
+  const rows: number[][] = [];
+  let i = 0;
+  while (i < aspectRatios.length) {
+    if (isLandscape(aspectRatios[i])) {
+      if (i + 1 < aspectRatios.length && !isLandscape(aspectRatios[i + 1])) {
+        rows.push([i, i + 1]);
+        i += 2;
+      } else {
+        rows.push([i]);
+        i += 1;
+      }
+    } else {
+      const group = [i];
+      let j = i + 1;
+      while (j < aspectRatios.length && !isLandscape(aspectRatios[j]) && group.length < 3) {
+        group.push(j);
+        j += 1;
+      }
+      rows.push(group);
+      i = j;
+    }
+  }
+  return rows;
+}
+
+type Box = { top: number; left: number; width: number; height: number };
+
+function computeGeometry(aspectRatios: number[], containerWidth: number): { boxes: Box[]; containerHeight: number } {
+  const rows = groupIntoRows(aspectRatios);
+  const boxes: Box[] = new Array(aspectRatios.length);
+  let top = 0;
+
+  for (const row of rows) {
+    const ratios = row.map(idx => aspectRatios[idx]);
+    const isThreePortraits = row.length === 3;
+    const isLandscapePortraitPair = row.length === 2 && isLandscape(ratios[0]) !== isLandscape(ratios[1]);
+    const fillsRow = isThreePortraits || isLandscapePortraitPair;
+
+    const sumRatios = ratios.reduce((a, b) => a + b, 0);
+    const totalSpacing = (row.length - 1) * BOX_SPACING;
+    const rowHeight = fillsRow
+      ? (containerWidth - totalSpacing) / sumRatios
+      : TARGET_ROW_HEIGHT;
+
+    let left = 0;
+    row.forEach((idx, i) => {
+      const width = rowHeight * aspectRatios[idx];
+      boxes[idx] = { top, left, width, height: rowHeight };
+      left += width + (i < row.length - 1 ? BOX_SPACING : 0);
+    });
+    top += rowHeight + BOX_SPACING;
+  }
+
+  return { boxes, containerHeight: Math.max(0, top - BOX_SPACING) };
+}
 
 function useAspectRatios(items: MediaItem[]): Map<string, number> {
   const [measured, setMeasured] = useState<Map<string, number>>(new Map());
@@ -85,18 +152,12 @@ function JustifiedGalleryGrid({ items, renderItem }: Props) {
     return measuredAspectRatios.get(item.id) ?? FALLBACK_ASPECT_RATIO;
   });
 
-  const layout = justifiedLayout(aspectRatios, {
-    containerWidth,
-    boxSpacing: BOX_SPACING,
-    targetRowHeight: TARGET_ROW_HEIGHT,
-    targetRowHeightTolerance: 0.3,
-    containerPadding: 0,
-  });
+  const { boxes, containerHeight } = computeGeometry(aspectRatios, containerWidth);
 
   return (
-    <div ref={containerRef} className="gallery-grid--justified" style={{ height: layout.containerHeight }}>
+    <div ref={containerRef} className="gallery-grid--justified" style={{ height: containerHeight }}>
       {items.map((item, idx) => {
-        const box = layout.boxes[idx];
+        const box = boxes[idx];
         return renderItem(item, idx, {
           position: 'absolute',
           top: box.top,
