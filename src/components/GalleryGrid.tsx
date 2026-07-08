@@ -229,17 +229,13 @@ function GalleryGrid({ node }: Props) {
   const [editingDescriptionItem, setEditingDescriptionItem] = useState<MediaItem | null>(null);
   const [savingDescription, setSavingDescription] = useState(false);
   const [localLayout, setLocalLayout]         = useState<GalleryLayout | null>(null);
-  const [savingLayout, setSavingLayout]       = useState(false);
 
+  // Not an admin-configurable/persisted setting — every gallery always
+  // starts from this same computed rule (Street's galleries default to
+  // Collage, everything else to Justified Gallery). The toggle below only
+  // changes what the current viewer sees for this visit; nothing is saved.
   const defaultLayout: GalleryLayout = node.parent_id === STREET_NODE_ID ? 'collage' : 'justified';
-  // Only trust an explicit 'collage'/'justified' value — a handful of
-  // galleries still carry a stale 'grid' or 'single' from earlier layout
-  // iterations that have since been replaced; treat anything unrecognized
-  // as unset and fall through to the default rather than rendering unstyled.
-  const storedLayout = (node.metadata as { layout?: string } | undefined)?.layout;
-  const validStoredLayout: GalleryLayout | undefined =
-    storedLayout === 'collage' || storedLayout === 'justified' ? storedLayout : undefined;
-  const layout: GalleryLayout = localLayout ?? validStoredLayout ?? defaultLayout;
+  const layout: GalleryLayout = localLayout ?? defaultLayout;
 
   useEffect(() => {
     setLoading(true);
@@ -419,27 +415,11 @@ function GalleryGrid({ node }: Props) {
   }
 
   // ── Layout (Collage / Justified Gallery) ─────────────────────────────────
-  // The toggle is visible to every visitor, not just admins — anyone can
-  // switch their own view instantly. Only an admin's choice also persists to
-  // the gallery's metadata, becoming the default every future visitor sees.
+  // Purely a view preference for whoever's looking, admin or not — nothing
+  // is ever saved. Every visit starts from the same computed default.
 
-  async function handleSetLayout(next: GalleryLayout) {
-    if (next === layout) return;
-    setLocalLayout(next); // instant, for everyone — no network round trip needed to change your own view
-
-    if (!isAdmin) return;
-
-    setSavingLayout(true);
-    try {
-      const newMetadata = { ...node.metadata, layout: next };
-      const { error } = await supabase.from('nodes').update({ metadata: newMetadata }).eq('id', node.id);
-      if (error) throw error;
-      toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Justified Gallery'} view`);
-    } catch {
-      toast.error('Failed to save layout as default');
-    } finally {
-      setSavingLayout(false);
-    }
+  function handleSetLayout(next: GalleryLayout) {
+    setLocalLayout(next);
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -477,14 +457,12 @@ function GalleryGrid({ node }: Props) {
         <button
           className={`gallery-layout-btn${layout === 'collage' ? ' gallery-layout-btn--active' : ''}`}
           onClick={() => handleSetLayout('collage')}
-          disabled={savingLayout}
         >
           Collage
         </button>
         <button
           className={`gallery-layout-btn${layout === 'justified' ? ' gallery-layout-btn--active' : ''}`}
           onClick={() => handleSetLayout('justified')}
-          disabled={savingLayout}
         >
           Justified Gallery
         </button>
