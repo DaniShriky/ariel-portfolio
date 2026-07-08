@@ -22,13 +22,14 @@ import { useAdminMode } from '../context/AdminModeContext';
 import type { MediaItem, Node } from '../types';
 import Lightbox from './Lightbox';
 import DescriptionModal from './DescriptionModal';
+import JustifiedGalleryGrid from './JustifiedGalleryGrid';
 
-type GalleryLayout = 'collage' | 'single';
+type GalleryLayout = 'collage' | 'justified';
 
 // "Street" category (Photo > Street) — its galleries (tlv, thailand, krakow,
 // and any added later) default to Collage; every other gallery defaults to
-// Single Image. Only matters when a gallery has no explicit metadata.layout
-// saved yet — admins can always override either way.
+// Justified Gallery. Only matters when a gallery has no explicit
+// metadata.layout saved yet — admins can always override either way.
 const STREET_NODE_ID = '62e62076-55d0-495e-be79-f210067ecec0';
 
 // ── Per-item component ────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ type ItemProps = {
   isAdmin: boolean;
   position: number;
   totalCount: number;
+  positionStyle: React.CSSProperties | undefined;
   confirmDeleteId: string | null;
   deleting: boolean;
   savingCoverId: string | null;
@@ -53,7 +55,7 @@ type ItemProps = {
 };
 
 function SortableGalleryItem({
-  item, isAdmin, position, totalCount, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
+  item, isAdmin, position, totalCount, positionStyle, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
   onDeleteClick, onDeleteCancel, onDeleteConfirm, onSetAsCover, onToggleFeatured, onEditDescription, onReposition, onImageClick,
 }: ItemProps) {
   const dims = item.metadata as { width?: number; height?: number; featured?: boolean; description?: string } | undefined;
@@ -76,7 +78,8 @@ function SortableGalleryItem({
     return () => document.removeEventListener('click', close);
   }, [menuOpen]);
 
-  const style = {
+  const style: React.CSSProperties = {
+    ...positionStyle,
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
@@ -86,12 +89,13 @@ function SortableGalleryItem({
   const url = getMediaUrl(item.storage_path);
   const isConfirming  = confirmDeleteId === item.id;
   const isSavingCover = savingCoverId === item.id;
+  const className     = `gallery-item${positionStyle ? ' gallery-item--positioned' : ''}`;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="gallery-item"
+      className={className}
       onClick={() => { if (!isConfirming && !menuOpen) onImageClick(); }}
     >
       {item.type === 'video' ? (
@@ -227,13 +231,14 @@ function GalleryGrid({ node }: Props) {
   const [localLayout, setLocalLayout]         = useState<GalleryLayout | null>(null);
   const [savingLayout, setSavingLayout]       = useState(false);
 
-  const defaultLayout: GalleryLayout = node.parent_id === STREET_NODE_ID ? 'collage' : 'single';
-  // Only trust an explicit 'collage'/'single' value — a handful of galleries
-  // still carry a stale 'grid' from an earlier square-crop layout that's been
-  // removed; treat anything unrecognized as unset and fall through to the default.
+  const defaultLayout: GalleryLayout = node.parent_id === STREET_NODE_ID ? 'collage' : 'justified';
+  // Only trust an explicit 'collage'/'justified' value — a handful of
+  // galleries still carry a stale 'grid' or 'single' from earlier layout
+  // iterations that have since been replaced; treat anything unrecognized
+  // as unset and fall through to the default rather than rendering unstyled.
   const storedLayout = (node.metadata as { layout?: string } | undefined)?.layout;
   const validStoredLayout: GalleryLayout | undefined =
-    storedLayout === 'collage' || storedLayout === 'single' ? storedLayout : undefined;
+    storedLayout === 'collage' || storedLayout === 'justified' ? storedLayout : undefined;
   const layout: GalleryLayout = localLayout ?? validStoredLayout ?? defaultLayout;
 
   useEffect(() => {
@@ -413,7 +418,7 @@ function GalleryGrid({ node }: Props) {
     }
   }
 
-  // ── Layout (Collage / Single Image) ──────────────────────────────────────
+  // ── Layout (Collage / Justified Gallery) ─────────────────────────────────
 
   async function handleSetLayout(next: GalleryLayout) {
     if (next === layout) return;
@@ -423,7 +428,7 @@ function GalleryGrid({ node }: Props) {
       const { error } = await supabase.from('nodes').update({ metadata: newMetadata }).eq('id', node.id);
       if (error) throw error;
       setLocalLayout(next);
-      toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Single Image'} view`);
+      toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Justified Gallery'} view`);
     } catch {
       toast.error('Failed to update layout');
     } finally {
@@ -434,6 +439,31 @@ function GalleryGrid({ node }: Props) {
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (loading) return <div className="spinner" />;
+
+  function renderItem(item: MediaItem, idx: number, positionStyle: React.CSSProperties | undefined) {
+    return (
+      <SortableGalleryItem
+        key={item.id}
+        item={item}
+        isAdmin={isAdmin}
+        position={idx + 1}
+        totalCount={items.length}
+        positionStyle={positionStyle}
+        confirmDeleteId={confirmDeleteId}
+        deleting={deleting}
+        savingCoverId={savingCoverId}
+        savingFeaturedId={savingFeaturedId}
+        onDeleteClick={id => setConfirmDeleteId(id)}
+        onDeleteCancel={() => setConfirmDeleteId(null)}
+        onDeleteConfirm={handleDeleteConfirm}
+        onSetAsCover={handleSetAsCover}
+        onToggleFeatured={handleToggleFeatured}
+        onEditDescription={setEditingDescriptionItem}
+        onReposition={handleReposition}
+        onImageClick={() => setLightboxIndex(idx)}
+      />
+    );
+  }
 
   return (
     <div>
@@ -447,11 +477,11 @@ function GalleryGrid({ node }: Props) {
             Collage
           </button>
           <button
-            className={`gallery-layout-btn${layout === 'single' ? ' gallery-layout-btn--active' : ''}`}
-            onClick={() => handleSetLayout('single')}
+            className={`gallery-layout-btn${layout === 'justified' ? ' gallery-layout-btn--active' : ''}`}
+            onClick={() => handleSetLayout('justified')}
             disabled={savingLayout}
           >
-            Single Image
+            Justified Gallery
           </button>
         </div>
       )}
@@ -463,29 +493,13 @@ function GalleryGrid({ node }: Props) {
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={items.map(i => i.id)} strategy={rectSortingStrategy}>
-          <div className={`gallery-grid gallery-grid--${layout}`}>
-            {items.map((item, idx) => (
-              <SortableGalleryItem
-                key={item.id}
-                item={item}
-                isAdmin={isAdmin}
-                position={idx + 1}
-                totalCount={items.length}
-                confirmDeleteId={confirmDeleteId}
-                deleting={deleting}
-                savingCoverId={savingCoverId}
-                savingFeaturedId={savingFeaturedId}
-                onDeleteClick={id => setConfirmDeleteId(id)}
-                onDeleteCancel={() => setConfirmDeleteId(null)}
-                onDeleteConfirm={handleDeleteConfirm}
-                onSetAsCover={handleSetAsCover}
-                onToggleFeatured={handleToggleFeatured}
-                onEditDescription={setEditingDescriptionItem}
-                onReposition={handleReposition}
-                onImageClick={() => setLightboxIndex(idx)}
-              />
-            ))}
-          </div>
+          {layout === 'collage' ? (
+            <div className="gallery-grid gallery-grid--collage">
+              {items.map((item, idx) => renderItem(item, idx, undefined))}
+            </div>
+          ) : (
+            <JustifiedGalleryGrid items={items} renderItem={renderItem} />
+          )}
         </SortableContext>
       </DndContext>
 
