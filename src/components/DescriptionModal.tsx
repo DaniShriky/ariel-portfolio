@@ -2,23 +2,27 @@ import { useState } from 'react';
 
 type Props = {
   initialValue: string;
+  title?: string;
+  placeholder?: string;
   saving?: boolean;
   onSave: (text: string) => void;
   onCancel: () => void;
 };
 
-function DescriptionModal({ initialValue, saving = false, onSave, onCancel }: Props) {
+function DescriptionModal({
+  initialValue, title = 'Edit description', placeholder = 'Add a caption for this image…', saving = false, onSave, onCancel,
+}: Props) {
   const [text, setText] = useState(initialValue);
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal-panel description-modal-panel" onClick={e => e.stopPropagation()}>
-        <p className="modal-title">Edit description</p>
+        <p className="modal-title">{title}</p>
         <textarea
           className="description-modal-textarea"
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Add a caption for this image…"
+          placeholder={placeholder}
           autoFocus
           disabled={saving}
         />

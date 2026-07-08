@@ -1680,6 +1680,25 @@ html {
   margin: 0;
 }
 
+.home-intro__edit-btn {
+  display: block;
+  margin: 14px auto 0;
+  font-size: 0.65rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 5px 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.home-intro__edit-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 @media (min-width: 768px) {
   .home-intro {
     padding: 25px 24px 36px;
