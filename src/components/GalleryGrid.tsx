@@ -19,14 +19,19 @@ import { CSS } from '@dnd-kit/utilities';
 import { getMediaUrl, getMediaSrcSet, readImageDimensions, uploadMedia, deleteMedia, uploadCover } from '../lib/mediaService';
 import { supabase } from '../lib/supabaseClient';
 import { useAdminMode } from '../context/AdminModeContext';
-import type { MediaItem } from '../types';
+import type { MediaItem, Node } from '../types';
 import Lightbox from './Lightbox';
+import DescriptionModal from './DescriptionModal';
+
+type GalleryLayout = 'collage' | 'grid';
 
 // ── Per-item component ────────────────────────────────────────────────────────
 
 type ItemProps = {
   item: MediaItem;
   isAdmin: boolean;
+  position: number;
+  totalCount: number;
   confirmDeleteId: string | null;
   deleting: boolean;
   savingCoverId: string | null;
@@ -36,22 +41,20 @@ type ItemProps = {
   onDeleteConfirm: (item: MediaItem) => void;
   onSetAsCover: (item: MediaItem) => void;
   onToggleFeatured: (item: MediaItem) => void;
+  onEditDescription: (item: MediaItem) => void;
+  onReposition: (item: MediaItem, newPosition: number) => void;
   onImageClick: () => void;
 };
 
 function SortableGalleryItem({
-  item, isAdmin, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
-  onDeleteClick, onDeleteCancel, onDeleteConfirm, onSetAsCover, onToggleFeatured, onImageClick,
+  item, isAdmin, position, totalCount, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
+  onDeleteClick, onDeleteCancel, onDeleteConfirm, onSetAsCover, onToggleFeatured, onEditDescription, onReposition, onImageClick,
 }: ItemProps) {
-  const dims = item.metadata as { width?: number; height?: number; featured?: boolean } | undefined;
+  const dims = item.metadata as { width?: number; height?: number; featured?: boolean; description?: string } | undefined;
   const isFeatured = !!dims?.featured;
   const isSavingFeatured = savingFeaturedId === item.id;
-  const knownOrientation = dims?.width && dims?.height
-    ? (dims.width >= dims.height ? 'landscape' : 'portrait')
-    : null;
 
-  const [orientation, setOrientation] = useState<'landscape' | 'portrait' | null>(knownOrientation);
-  const [menuOpen, setMenuOpen]       = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   // Supabase's image transform rejects source files above its size limit;
   // fall back to the untransformed URL rather than showing a broken image.
   const [transformFailed, setTransformFailed] = useState(false);
@@ -77,13 +80,12 @@ function SortableGalleryItem({
   const url = getMediaUrl(item.storage_path);
   const isConfirming  = confirmDeleteId === item.id;
   const isSavingCover = savingCoverId === item.id;
-  const className     = `gallery-item${orientation === 'landscape' ? ' gallery-item--landscape' : ''}`;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={className}
+      className="gallery-item"
       onClick={() => { if (!isConfirming && !menuOpen) onImageClick(); }}
     >
       {item.type === 'video' ? (
@@ -93,28 +95,24 @@ function SortableGalleryItem({
           controls
           playsInline
           preload="metadata"
-          onLoadedMetadata={e => {
-            const v = e.currentTarget;
-            setOrientation(v.videoWidth >= v.videoHeight ? 'landscape' : 'portrait');
-          }}
         />
       ) : (
         <img
           src={transformFailed ? url : getMediaUrl(item.storage_path, { width: 1080, height: 1080, resize: 'contain', quality: 80 })}
           srcSet={transformFailed ? undefined : getMediaSrcSet(item.storage_path, [480, 768, 1080, 1440, 1920])}
-          sizes={orientation === 'landscape' ? '100vw' : '(min-width: 768px) 34vw, 100vw'}
+          sizes="(min-width: 768px) 34vw, 100vw"
           width={dims?.width}
           height={dims?.height}
           alt={item.title}
           className="gallery-img"
           loading="lazy"
           decoding="async"
-          onLoad={e => {
-            const img = e.currentTarget;
-            setOrientation(img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait');
-          }}
           onError={() => setTransformFailed(true)}
         />
+      )}
+
+      {dims?.description && (
+        <div className="gallery-item-caption">{dims.description}</div>
       )}
 
       {isAdmin && (
@@ -123,6 +121,24 @@ function SortableGalleryItem({
           <div className="gallery-drag-handle" {...attributes} {...listeners} title="Drag to reorder">
             ⠿
           </div>
+
+          {/* position input */}
+          <input
+            type="number"
+            className="gallery-position-input"
+            min={1}
+            max={totalCount}
+            defaultValue={position}
+            key={position}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            onBlur={e => {
+              const raw = parseInt(e.currentTarget.value, 10);
+              if (Number.isNaN(raw) || raw === position) { e.currentTarget.value = String(position); return; }
+              onReposition(item, raw);
+            }}
+            title="Gallery position"
+          />
 
           {/* ⋮ options button + dropdown */}
           {!isConfirming && (
@@ -152,6 +168,11 @@ function SortableGalleryItem({
                     </button>
                   )}
                   <button
+                    onClick={() => { setMenuOpen(false); onEditDescription(item); }}
+                  >
+                    {dims?.description ? 'Edit description' : 'Add description'}
+                  </button>
+                  <button
                     className="danger"
                     onClick={() => { setMenuOpen(false); onDeleteClick(item.id); }}
                   >
@@ -180,9 +201,10 @@ function SortableGalleryItem({
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
 
-type Props = { nodeId: string };
+type Props = { node: Node };
 
-function GalleryGrid({ nodeId }: Props) {
+function GalleryGrid({ node }: Props) {
+  const nodeId = node.id;
   const { isAdmin } = useAdminMode();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -194,6 +216,14 @@ function GalleryGrid({ nodeId }: Props) {
   const [savingCoverId, setSavingCoverId]     = useState<string | null>(null);
   const [savingFeaturedId, setSavingFeaturedId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex]     = useState<number | null>(null);
+  const [editingDescriptionItem, setEditingDescriptionItem] = useState<MediaItem | null>(null);
+  const [savingDescription, setSavingDescription] = useState(false);
+  const [localLayout, setLocalLayout]         = useState<GalleryLayout | null>(null);
+  const [savingLayout, setSavingLayout]       = useState(false);
+
+  const layout: GalleryLayout = localLayout
+    ?? ((node.metadata as { layout?: GalleryLayout } | undefined)?.layout)
+    ?? 'collage';
 
   useEffect(() => {
     setLoading(true);
@@ -232,6 +262,17 @@ function GalleryGrid({ nodeId }: Props) {
         supabase.from('media_items').update({ sort_order: i }).eq('id', item.id)
       )
     );
+  }
+
+  function handleReposition(item: MediaItem, newPosition: number) {
+    setItems(prev => {
+      const clamped = Math.min(Math.max(newPosition, 1), prev.length) - 1;
+      const oldIndex = prev.findIndex(i => i.id === item.id);
+      if (oldIndex === -1 || oldIndex === clamped) return prev;
+      const reordered = arrayMove(prev, oldIndex, clamped);
+      saveSortOrder(reordered);
+      return reordered;
+    });
   }
 
   // ── Upload ───────────────────────────────────────────────────────────────
@@ -340,12 +381,70 @@ function GalleryGrid({ nodeId }: Props) {
     }
   }
 
+  // ── Description ──────────────────────────────────────────────────────────
+
+  async function handleSaveDescription(text: string) {
+    if (!editingDescriptionItem) return;
+    setSavingDescription(true);
+    try {
+      const trimmed = text.trim();
+      const newMetadata = { ...editingDescriptionItem.metadata, description: trimmed || undefined };
+      const { error } = await supabase.from('media_items').update({ metadata: newMetadata }).eq('id', editingDescriptionItem.id);
+      if (error) throw error;
+      const savedId = editingDescriptionItem.id;
+      setItems(prev => prev.map(i => i.id === savedId ? { ...i, metadata: newMetadata } : i));
+      setEditingDescriptionItem(null);
+      toast.success('Description saved');
+    } catch {
+      toast.error('Failed to save description');
+    } finally {
+      setSavingDescription(false);
+    }
+  }
+
+  // ── Layout (Collage / Grid) ──────────────────────────────────────────────
+
+  async function handleSetLayout(next: GalleryLayout) {
+    if (next === layout) return;
+    setSavingLayout(true);
+    try {
+      const newMetadata = { ...node.metadata, layout: next };
+      const { error } = await supabase.from('nodes').update({ metadata: newMetadata }).eq('id', node.id);
+      if (error) throw error;
+      setLocalLayout(next);
+      toast.success(`Switched to ${next === 'collage' ? 'Collage' : 'Grid'} view`);
+    } catch {
+      toast.error('Failed to update layout');
+    } finally {
+      setSavingLayout(false);
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (loading) return <div className="spinner" />;
 
   return (
     <div>
+      {isAdmin && (
+        <div className="gallery-layout-toggle">
+          <button
+            className={`gallery-layout-btn${layout === 'collage' ? ' gallery-layout-btn--active' : ''}`}
+            onClick={() => handleSetLayout('collage')}
+            disabled={savingLayout}
+          >
+            Collage
+          </button>
+          <button
+            className={`gallery-layout-btn${layout === 'grid' ? ' gallery-layout-btn--active' : ''}`}
+            onClick={() => handleSetLayout('grid')}
+            disabled={savingLayout}
+          >
+            Grid
+          </button>
+        </div>
+      )}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -353,12 +452,14 @@ function GalleryGrid({ nodeId }: Props) {
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={items.map(i => i.id)} strategy={rectSortingStrategy}>
-          <div className="gallery-grid">
+          <div className={`gallery-grid gallery-grid--${layout}`}>
             {items.map((item, idx) => (
               <SortableGalleryItem
                 key={item.id}
                 item={item}
                 isAdmin={isAdmin}
+                position={idx + 1}
+                totalCount={items.length}
                 confirmDeleteId={confirmDeleteId}
                 deleting={deleting}
                 savingCoverId={savingCoverId}
@@ -368,6 +469,8 @@ function GalleryGrid({ nodeId }: Props) {
                 onDeleteConfirm={handleDeleteConfirm}
                 onSetAsCover={handleSetAsCover}
                 onToggleFeatured={handleToggleFeatured}
+                onEditDescription={setEditingDescriptionItem}
+                onReposition={handleReposition}
                 onImageClick={() => setLightboxIndex(idx)}
               />
             ))}
@@ -403,6 +506,15 @@ function GalleryGrid({ nodeId }: Props) {
           index={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onNavigate={setLightboxIndex}
+        />
+      )}
+
+      {editingDescriptionItem && (
+        <DescriptionModal
+          initialValue={(editingDescriptionItem.metadata as { description?: string } | undefined)?.description ?? ''}
+          saving={savingDescription}
+          onSave={handleSaveDescription}
+          onCancel={() => setEditingDescriptionItem(null)}
         />
       )}
     </div>

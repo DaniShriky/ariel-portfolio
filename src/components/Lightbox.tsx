@@ -23,6 +23,7 @@ function Lightbox({ items, index, onClose, onNavigate }: Props) {
   // item doesn't need an effect to reset it.
   const [failedItemId, setFailedItemId] = useState<string | undefined>(undefined);
   const transformFailed = failedItemId === item?.id;
+  const description = (item?.metadata as { description?: string } | undefined)?.description;
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -82,6 +83,8 @@ function Lightbox({ items, index, onClose, onNavigate }: Props) {
           aria-label="Next image"
         >›</button>
       )}
+
+      {description && <p className="lightbox-caption">{description}</p>}
 
       <span className="lightbox-counter">{index + 1} / {items.length}</span>
     </div>

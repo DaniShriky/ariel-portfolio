@@ -265,6 +265,12 @@ flex-direction: column;
   will-change: transform;
 }
 
+/* admin-adjustable transparency — image layer only, tint/label stay legible */
+.node-img,
+.node-img--crop-bg {
+  opacity: var(--node-opacity, 1);
+}
+
 .node-slot:hover .node-img {
   transform: scale(1.04);
 }
@@ -485,22 +491,93 @@ flex-direction: column;
 }
 
 /* ── Gallery ── */
-.gallery-grid {
-  display: grid;
-  grid-template-columns: 1fr; /* mobile: full width */
+
+/* Collage/Grid layout switch — admin-only control, the chosen mode is what
+   every visitor sees (persisted on the node, not a client-side preference). */
+.gallery-layout-toggle {
+  display: flex;
+  gap: 0;
+  width: fit-content;
+  margin: 16px auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.gallery-layout-btn {
+  padding: 6px 18px;
+  font-size: 0.68rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.gallery-layout-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gallery-layout-btn--active {
+  background: var(--accent);
+  color: #191818;
+}
+
+/* Collage: masonry columns, same technique as .featured-work__grid — lets
+   landscape (short-wide) and portrait (tall) images sit side by side in
+   parallel columns instead of landscape forcing its own full-width row. */
+.gallery-grid--collage {
+  columns: 1;
+  column-gap: 12px;
 }
 
 @media (min-width: 768px) {
-  .gallery-grid {
+  .gallery-grid--collage {
+    columns: 3;
+    column-gap: 16px;
+  }
+}
+
+.gallery-grid--collage .gallery-item {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 768px) {
+  .gallery-grid--collage .gallery-item {
+    margin-bottom: 16px;
+  }
+}
+
+/* Grid: uniform evenly-sized cells, cropped to fill via object-fit. */
+.gallery-grid--grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .gallery-grid--grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
   }
-  .gallery-item--landscape {
-    grid-column: span 3;
-  }
+}
+
+.gallery-grid--grid .gallery-item {
+  aspect-ratio: 1;
+}
+
+.gallery-grid--grid .gallery-img,
+.gallery-grid--grid .gallery-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .gallery-item {
   position: relative;
+  overflow: hidden;
 }
 
 .gallery-img {
@@ -532,6 +609,31 @@ flex-direction: column;
 
 .gallery-drag-handle:active {
   cursor: grabbing;
+}
+
+/* position (reorder-by-number) badge — sits right of the drag handle */
+.gallery-position-input {
+  position: absolute;
+  top: 8px;
+  left: 42px;
+  z-index: 2;
+  width: 34px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-family: inherit;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.gallery-position-input::-webkit-outer-spin-button,
+.gallery-position-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* delete button — top-right */
@@ -858,6 +960,23 @@ flex-direction: column;
   margin: 0;
 }
 
+.description-modal-panel {
+  max-width: 440px;
+}
+
+.description-modal-textarea {
+  width: 100%;
+  min-height: 100px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 10px 12px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
 /* ── ⋮ options button (category cards) ── */
 .node-options-btn {
   position: absolute;
@@ -925,6 +1044,50 @@ flex-direction: column;
 .node-options-menu button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.node-options-menu__slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.node-options-menu__slider-label {
+  font-size: 0.68rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.node-opacity-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  outline: none;
+  cursor: pointer;
+}
+
+.node-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.node-opacity-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
 }
 
 /* ── ⋮ options button (gallery items) ── */
@@ -1102,6 +1265,32 @@ flex-direction: column;
   height: auto;
 }
 
+/* image/video caption — mobile: always visible; desktop: hover-reveal.
+   pointer-events:none so it never blocks the tap-to-open-lightbox gesture. */
+.gallery-item-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .gallery-item-caption {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .gallery-item:hover .gallery-item-caption {
+    opacity: 1;
+  }
+}
+
 /* ── Lightbox ── */
 .lightbox-backdrop {
   position: fixed;
@@ -1205,6 +1394,28 @@ flex-direction: column;
 @media (max-width: 767px) {
   .lightbox-video {
     max-height: calc(100vh - 100px);
+  }
+}
+
+.lightbox-caption {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(600px, calc(100vw - 120px));
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .lightbox-caption {
+    bottom: 44px;
+    font-size: 0.78rem;
   }
 }
 
@@ -1378,23 +1589,6 @@ html {
   line-height: 1.8;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
-}
-
-.home-intro__chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 24px;
-}
-
-.home-intro__chip {
-  border: 1px solid #FF934F;
-  color: #FF934F;
-  padding: 4px 12px;
-  font-size: 0.75rem;
-  letter-spacing: 1px;
-  text-transform: uppercase;
 }
 
 @media (min-width: 768px) {

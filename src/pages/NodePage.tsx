@@ -225,7 +225,7 @@ function NodePage() {
     return (
       <>
         <Header subtitle={node.title} />
-        <GalleryGrid nodeId={node.id} />
+        <GalleryGrid node={node} />
       </>
     );
   }

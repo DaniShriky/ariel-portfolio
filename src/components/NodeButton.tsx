@@ -81,12 +81,17 @@ function NodeButton({ node, href, onDelete }: Props) {
   // ── publish state ──
   const [localIsPublished, setLocalIsPublished] = useState<boolean | null>(null);
 
+  // ── opacity state ──
+  const [localOpacity, setLocalOpacity] = useState<number | null>(null);
+  const [opacitySaving, setOpacitySaving] = useState(false);
+
   // Supabase's image transform rejects source files above its size limit
   // (~large camera-original PNGs). Fall back to the untransformed URL rather
   // than showing a broken image.
   const [coverTransformFailed, setCoverTransformFailed] = useState(false);
 
   const isPublished       = localIsPublished ?? node.is_published;
+  const opacity           = localOpacity ?? ((node.metadata as { opacity?: number } | undefined)?.opacity ?? 1);
   const displayTitle      = localTitle ?? node.title;
   const activeCoverPath   = localCoverPath ?? node.cover_path;
   const activeDesktopPath = localDesktopPath !== undefined ? localDesktopPath : node.cover_path_desktop;
@@ -296,6 +301,21 @@ function NodeButton({ node, href, onDelete }: Props) {
     } catch { toast.error('Failed to update'); }
   }
 
+  // ── opacity handler ───────────────────────────────────────────────────────────
+  // Commits on release (pointer up / key up), not on every drag tick, to avoid
+  // hammering the DB — the live fade itself comes from localOpacity updating
+  // on every onChange, no separate preview state needed.
+
+  async function saveOpacity(value: number) {
+    setOpacitySaving(true);
+    try {
+      const newMetadata = { ...node.metadata, opacity: value };
+      const { error } = await supabase.from('nodes').update({ metadata: newMetadata }).eq('id', node.id);
+      if (error) throw error;
+    } catch { toast.error('Failed to save opacity'); }
+    finally { setOpacitySaving(false); }
+  }
+
   // ── derived ──────────────────────────────────────────────────────────────────
 
   const hasCropDisplay  = !!localCrop && Object.keys(cropBgStyle).length > 0;
@@ -308,7 +328,7 @@ function NodeButton({ node, href, onDelete }: Props) {
       <div
         ref={containerRef}
         className="node-button"
-        style={{ '--focal-mobile': focalMobile, '--focal-desktop': focalDesktop } as React.CSSProperties}
+        style={{ '--focal-mobile': focalMobile, '--focal-desktop': focalDesktop, '--node-opacity': opacity } as React.CSSProperties}
       >
         <Link to={href} className="node-button__link">
           {/* Cover image: crop display when crop set, else standard img */}
@@ -353,6 +373,21 @@ function NodeButton({ node, href, onDelete }: Props) {
                 <button onClick={handleTogglePublished}>
                   {isPublished ? 'Unpublish' : 'Publish'}
                 </button>
+                <div className="node-options-menu__slider-row" onClick={e => e.stopPropagation()}>
+                  <span className="node-options-menu__slider-label">Opacity</span>
+                  <input
+                    type="range"
+                    className="node-opacity-slider"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={opacity}
+                    disabled={opacitySaving}
+                    onChange={e => setLocalOpacity(parseFloat(e.target.value))}
+                    onPointerUp={() => saveOpacity(opacity)}
+                    onKeyUp={() => saveOpacity(opacity)}
+                  />
+                </div>
                 <button onClick={openFilePicker}>
                   {activeCoverPath ? 'Change cover image' : 'Set cover image'}
                 </button>
