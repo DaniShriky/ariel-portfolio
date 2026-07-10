@@ -8,6 +8,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { supabase } from '../lib/supabaseClient';
+import { FAVORITES_SLUG } from '../lib/constants';
 import type { Node } from '../types';
 import NotFound from './NotFound';
 import Header from '../components/Header';
@@ -88,7 +89,7 @@ function NodePage() {
       }
 
       if (currentNode === null) {
-        const q = supabase.from('nodes').select('*').is('parent_id', null).order('sort_order');
+        const q = supabase.from('nodes').select('*').is('parent_id', null).neq('slug', FAVORITES_SLUG).order('sort_order');
         const { data, error } = await (isAdmin ? q : q.eq('is_published', true));
         if (error || !data) { setStatus('not_found'); return; }
         setNode(null);

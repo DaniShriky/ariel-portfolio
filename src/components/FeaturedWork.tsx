@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
 import { getMediaUrl, getMediaSrcSet, readImageDimensions, uploadMedia } from '../lib/mediaService';
 import { useAdminMode } from '../context/AdminModeContext';
+import { FAVORITES_SLUG } from '../lib/constants';
 import type { MediaItem } from '../types';
 import Lightbox from './Lightbox';
 
@@ -10,9 +11,11 @@ import Lightbox from './Lightbox';
 // photos with metadata.featured = true. Photos "toggled" featured from an
 // existing gallery (GalleryGrid's ⋮ menu) live in that gallery's node.
 // Photos uploaded directly here have nowhere else to live, so they're filed
-// under one lazily-created "Homepage Favorites" node — published so visitors
-// can see them, but manageable by the admin like any other gallery if needed.
-const FAVORITES_SLUG = 'home-favorites';
+// under one lazily-created, unpublished "Homepage Favorites" node — kept
+// unpublished (and explicitly excluded in NodePage's menu query) so it never
+// surfaces as a real menu button, but its photos are still publicly visible
+// because RLS grants read access to any media item with metadata.featured =
+// true regardless of its node's publish status.
 
 async function getOrCreateFavoritesNodeId(): Promise<string> {
   const { data: existing } = await supabase
@@ -31,7 +34,7 @@ async function getOrCreateFavoritesNodeId(): Promise<string> {
       kind: 'gallery',
       parent_id: null,
       sort_order: 9999,
-      is_published: true,
+      is_published: false,
       focal_x: 0.5,
       focal_y: 0.5,
       metadata: {},
