@@ -1,7 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { getCoverUrl, getCoverSrcSet, uploadCover } from '../lib/mediaService';
+import {
+  getCoverUrl, getCoverSrcSet,
+  getCoverDerivativeUrl, getCoverDerivativeSrcSet,
+  COVER_MOBILE_WIDTH_LADDER, COVER_DESKTOP_WIDTH_LADDER,
+  uploadCover, triggerDerivativeGeneration,
+} from '../lib/mediaService';
 import { supabase } from '../lib/supabaseClient';
 import { useAdminMode } from '../context/AdminModeContext';
 import type { Node } from '../types';
@@ -85,9 +90,15 @@ function NodeButton({ node, href, onDelete }: Props) {
   const [localOpacity, setLocalOpacity] = useState<number | null>(null);
   const [opacitySaving, setOpacitySaving] = useState(false);
 
-  // Supabase's image transform rejects source files above its size limit
-  // (~large camera-original PNGs). Fall back to the untransformed URL rather
-  // than showing a broken image.
+  // Three-tier fallback, same pattern used for gallery media: pre-generated
+  // derivative (fast, static file) → on-the-fly transform (still correct,
+  // just a live round-trip) → fully untransformed original (Supabase's
+  // transform endpoint rejects source files above its size limit, so this is
+  // the last resort). Derivatives are full-frame resizes of the original —
+  // not pre-cropped — so the focal-point crop below (CSS object-fit/
+  // object-position, driven by --focal-mobile/--focal-desktop) keeps working
+  // unchanged no matter which tier is actually serving the pixels.
+  const [coverDerivativeFailed, setCoverDerivativeFailed] = useState(false);
   const [coverTransformFailed, setCoverTransformFailed] = useState(false);
 
   const isPublished       = localIsPublished ?? node.is_published;
@@ -96,13 +107,25 @@ function NodeButton({ node, href, onDelete }: Props) {
   const activeCoverPath   = localCoverPath ?? node.cover_path;
   const activeDesktopPath = localDesktopPath !== undefined ? localDesktopPath : node.cover_path_desktop;
   const mobileUrl         = activeCoverPath
-    ? getCoverUrl(activeCoverPath, coverTransformFailed ? undefined : { width: 800, height: 800, resize: 'contain', quality: 80 })
+    ? (coverTransformFailed
+        ? getCoverUrl(activeCoverPath)
+        : coverDerivativeFailed
+          ? getCoverUrl(activeCoverPath, { width: 800, height: 800, resize: 'contain', quality: 80 })
+          : getCoverDerivativeUrl(activeCoverPath, 768))
     : null;
   const desktopUrl        = activeDesktopPath
-    ? getCoverUrl(activeDesktopPath, coverTransformFailed ? undefined : { width: 1600, height: 1600, resize: 'contain', quality: 80 })
+    ? (coverTransformFailed
+        ? getCoverUrl(activeDesktopPath)
+        : coverDerivativeFailed
+          ? getCoverUrl(activeDesktopPath, { width: 1600, height: 1600, resize: 'contain', quality: 80 })
+          : getCoverDerivativeUrl(activeDesktopPath, 1440))
     : null;
-  const mobileSrcSet      = !coverTransformFailed && activeCoverPath ? getCoverSrcSet(activeCoverPath, [480, 768, 1080, 1440]) : undefined;
-  const desktopSrcSet     = !coverTransformFailed && activeDesktopPath ? getCoverSrcSet(activeDesktopPath, [768, 1080, 1440, 1920]) : undefined;
+  const mobileSrcSet      = !activeCoverPath || coverTransformFailed ? undefined
+    : coverDerivativeFailed ? getCoverSrcSet(activeCoverPath, COVER_MOBILE_WIDTH_LADDER)
+    : getCoverDerivativeSrcSet(activeCoverPath, COVER_MOBILE_WIDTH_LADDER);
+  const desktopSrcSet     = !activeDesktopPath || coverTransformFailed ? undefined
+    : coverDerivativeFailed ? getCoverSrcSet(activeDesktopPath, COVER_DESKTOP_WIDTH_LADDER)
+    : getCoverDerivativeSrcSet(activeDesktopPath, COVER_DESKTOP_WIDTH_LADDER);
   const hasDesktopCover   = !!activeDesktopPath;
   const focalMobile       = `${node.focal_x * 100}% ${node.focal_y * 100}%`;
   const focalDesktop      = `${(node.focal_x_desktop ?? node.focal_x) * 100}% ${(node.focal_y_desktop ?? node.focal_y) * 100}%`;
@@ -136,7 +159,9 @@ function NodeButton({ node, href, onDelete }: Props) {
       if (containerRef.current) obs.observe(containerRef.current);
     };
     img.onerror = () => {
-      if (!cancelled) setCoverTransformFailed(true);
+      if (cancelled) return;
+      if (!coverDerivativeFailed) setCoverDerivativeFailed(true);
+      else setCoverTransformFailed(true);
     };
     img.src = mobileUrl;
 
@@ -210,6 +235,7 @@ function NodeButton({ node, href, onDelete }: Props) {
         if (error) throw error;
         setLocalCoverPath(newPath);
         setLocalCrop(crop);
+        triggerDerivativeGeneration('covers', newPath, COVER_MOBILE_WIDTH_LADDER);
         toast.success('Cover updated');
 
       } else if (cropMode === 'edit') {
@@ -239,6 +265,7 @@ function NodeButton({ node, href, onDelete }: Props) {
       const { error } = await supabase.from('nodes').update({ cover_path_desktop: newPath }).eq('id', node.id);
       if (error) throw error;
       setLocalDesktopPath(newPath);
+      triggerDerivativeGeneration('covers', newPath, COVER_DESKTOP_WIDTH_LADDER);
       toast.success('Desktop cover updated');
     } catch { toast.error('Failed to save desktop cover'); }
     finally { setCoverSaving(false); }
@@ -345,7 +372,7 @@ function NodeButton({ node, href, onDelete }: Props) {
                     alt={displayTitle}
                     className="node-img"
                     decoding="async"
-                    onError={() => setCoverTransformFailed(true)}
+                    onError={() => { if (!coverDerivativeFailed) setCoverDerivativeFailed(true); else setCoverTransformFailed(true); }}
                   />
                 : <div className="node-img node-img--placeholder" />}
             </picture>

@@ -150,7 +150,12 @@ function useAspectRatios(items: MediaItem[]): Map<string, number> {
 
 type Props = {
   items: MediaItem[];
-  renderItem: (item: MediaItem, index: number, positionStyle: React.CSSProperties | undefined) => React.ReactNode;
+  // `sizes` is the real rendered width for this exact item (a `sizes` media
+  // query value, e.g. "420px" or "100vw") — not a static guess. Row shapes
+  // here vary from ~20% to 80% of the container, so a fixed vw hint would
+  // cause the browser to fetch an undersized srcset candidate for images in
+  // wider slots (solo images, landscape/portrait pairs).
+  renderItem: (item: MediaItem, index: number, positionStyle: React.CSSProperties | undefined, sizes: string) => React.ReactNode;
 };
 
 function JustifiedGalleryGrid({ items, renderItem }: Props) {
@@ -177,7 +182,7 @@ function JustifiedGalleryGrid({ items, renderItem }: Props) {
   if (containerWidth < MOBILE_BREAKPOINT) {
     return (
       <div ref={containerRef} className="gallery-grid--justified-stack">
-        {items.map((item, idx) => renderItem(item, idx, undefined))}
+        {items.map((item, idx) => renderItem(item, idx, undefined, '100vw'))}
       </div>
     );
   }
@@ -201,7 +206,7 @@ function JustifiedGalleryGrid({ items, renderItem }: Props) {
           left: box.left,
           width: box.width,
           height: box.height,
-        });
+        }, `${Math.round(box.width)}px`);
       })}
     </div>
   );

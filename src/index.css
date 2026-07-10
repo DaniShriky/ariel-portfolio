@@ -1645,6 +1645,50 @@ html {
   opacity: 0.6;
 }
 
+.featured-work__drag-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  font-size: 1.1rem;
+  user-select: none;
+}
+
+.featured-work__drag-handle:active {
+  cursor: grabbing;
+}
+
+.featured-work__position-input {
+  position: absolute;
+  top: 8px;
+  left: 42px;
+  z-index: 2;
+  width: 34px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-family: inherit;
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0;
+  appearance: textfield;
+}
+
+.featured-work__position-input::-webkit-outer-spin-button,
+.featured-work__position-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .featured-work__add-btn {
   display: block;
   margin: 24px auto 0;

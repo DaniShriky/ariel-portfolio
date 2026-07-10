@@ -16,7 +16,13 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getMediaUrl, getMediaSrcSet, readImageDimensions, uploadMedia, deleteMedia, uploadCover } from '../lib/mediaService';
+import {
+  getMediaUrl, getMediaUrlForWidth, getMediaSrcSet,
+  getMediaDerivativeUrl, getMediaDerivativeSrcSet, MEDIA_WIDTH_LADDER,
+  COVER_MOBILE_WIDTH_LADDER,
+  readImageDimensions, uploadMedia, deleteMedia, uploadCover,
+  triggerDerivativeGeneration,
+} from '../lib/mediaService';
 import { supabase } from '../lib/supabaseClient';
 import { useAdminMode } from '../context/AdminModeContext';
 import type { MediaItem, Node } from '../types';
@@ -40,6 +46,7 @@ type ItemProps = {
   position: number;
   totalCount: number;
   positionStyle: React.CSSProperties | undefined;
+  sizes: string;
   confirmDeleteId: string | null;
   deleting: boolean;
   savingCoverId: string | null;
@@ -55,16 +62,21 @@ type ItemProps = {
 };
 
 function SortableGalleryItem({
-  item, isAdmin, position, totalCount, positionStyle, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
+  item, isAdmin, position, totalCount, positionStyle, sizes, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
   onDeleteClick, onDeleteCancel, onDeleteConfirm, onSetAsCover, onToggleFeatured, onEditDescription, onReposition, onImageClick,
 }: ItemProps) {
   const dims = item.metadata as { width?: number; height?: number; featured?: boolean; description?: string } | undefined;
   const isFeatured = !!dims?.featured;
   const isSavingFeatured = savingFeaturedId === item.id;
+  const aspectRatio = dims?.width && dims?.height ? dims.width / dims.height : undefined;
 
   const [menuOpen, setMenuOpen] = useState(false);
-  // Supabase's image transform rejects source files above its size limit;
-  // fall back to the untransformed URL rather than showing a broken image.
+  // Three-tier fallback: pre-generated derivative (fast, static file) →
+  // on-the-fly transform (still aspect-correct, but a live transform) →
+  // fully untransformed original (Supabase's transform endpoint rejects
+  // source files above its size limit, so this is the last resort for
+  // images that haven't been backfilled with a derivative yet).
+  const [derivativeFailed, setDerivativeFailed] = useState(false);
   const [transformFailed, setTransformFailed] = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -108,16 +120,24 @@ function SortableGalleryItem({
         />
       ) : (
         <img
-          src={transformFailed ? url : getMediaUrl(item.storage_path, { width: 1080, height: 1080, resize: 'contain', quality: 80 })}
-          srcSet={transformFailed ? undefined : getMediaSrcSet(item.storage_path, [480, 768, 1080, 1440, 1920])}
-          sizes="(min-width: 768px) 34vw, 100vw"
+          src={
+            transformFailed ? url
+            : derivativeFailed ? getMediaUrlForWidth(item.storage_path, 1080, 80, aspectRatio)
+            : getMediaDerivativeUrl(item.storage_path, 1080)
+          }
+          srcSet={
+            transformFailed ? undefined
+            : derivativeFailed ? getMediaSrcSet(item.storage_path, MEDIA_WIDTH_LADDER, 80, aspectRatio)
+            : getMediaDerivativeSrcSet(item.storage_path)
+          }
+          sizes={sizes}
           width={dims?.width}
           height={dims?.height}
           alt={item.title}
           className="gallery-img"
           loading="lazy"
           decoding="async"
-          onError={() => setTransformFailed(true)}
+          onError={() => { if (!derivativeFailed) setDerivativeFailed(true); else setTransformFailed(true); }}
         />
       )}
 
@@ -323,6 +343,12 @@ function GalleryGrid({ node }: Props) {
 
           if (error) throw error;
           setItems(prev => [...prev, data as MediaItem]);
+          if (dims) {
+            triggerDerivativeGeneration('media', storagePath, MEDIA_WIDTH_LADDER, {
+              naturalWidth: dims.width,
+              aspectRatio: dims.width / dims.height,
+            });
+          }
         } catch {
           toast.error(`Failed to upload ${file.name}`);
         } finally {
@@ -366,6 +392,11 @@ function GalleryGrid({ node }: Props) {
       const newCoverPath = await uploadCover(file);
       const { error } = await supabase.from('nodes').update({ cover_path: newCoverPath }).eq('id', nodeId);
       if (error) throw error;
+
+      const itemDims = item.metadata as { width?: number; height?: number } | undefined;
+      triggerDerivativeGeneration('covers', newCoverPath, COVER_MOBILE_WIDTH_LADDER, {
+        naturalWidth: itemDims?.width,
+      });
 
       toast.success('Cover updated');
     } catch {
@@ -426,7 +457,7 @@ function GalleryGrid({ node }: Props) {
 
   if (loading) return <div className="spinner" />;
 
-  function renderItem(item: MediaItem, idx: number, positionStyle: React.CSSProperties | undefined) {
+  function renderItem(item: MediaItem, idx: number, positionStyle: React.CSSProperties | undefined, sizes: string) {
     return (
       <SortableGalleryItem
         key={item.id}
@@ -435,6 +466,7 @@ function GalleryGrid({ node }: Props) {
         position={idx + 1}
         totalCount={items.length}
         positionStyle={positionStyle}
+        sizes={sizes}
         confirmDeleteId={confirmDeleteId}
         deleting={deleting}
         savingCoverId={savingCoverId}
@@ -477,7 +509,7 @@ function GalleryGrid({ node }: Props) {
         <SortableContext items={items.map(i => i.id)} strategy={rectSortingStrategy}>
           {layout === 'collage' ? (
             <div className="gallery-grid gallery-grid--collage">
-              {items.map((item, idx) => renderItem(item, idx, undefined))}
+              {items.map((item, idx) => renderItem(item, idx, undefined, '(min-width: 768px) 34vw, 50vw'))}
             </div>
           ) : (
             <JustifiedGalleryGrid items={items} renderItem={renderItem} />

@@ -38,14 +38,85 @@ function buildSrcSet(urlFor: (width: number) => string, widths: number[]): strin
   return widths.map(w => `${urlFor(w)} ${w}w`).join(', ');
 }
 
-// Square contain-box per candidate width: whichever axis of the real image is
-// larger gets capped at `w`, aspect ratio always preserved.
+// A square w×w box with resize:'contain' only delivers a true w-px-wide
+// image for landscape/square sources — a portrait source is capped by the
+// height axis instead, so it's delivered narrower than `w` while still being
+// labeled "Nw" in a srcset. Browsers then under-fetch resolution for
+// portraits specifically. Passing the real aspect ratio keeps width exact
+// for every orientation by shaping the box to match.
+function containBox(width: number, aspectRatio?: number): { width: number; height: number } {
+  if (!aspectRatio) return { width, height: width };
+  return { width, height: Math.round(width / aspectRatio) };
+}
+
+// Covers are always requested as a square box regardless of source
+// orientation — the delivered image is cropped to a focal point client-side
+// via CSS object-fit/object-position, so a square box deliberately
+// over-fetches on one axis to guarantee enough pixels for any tile aspect
+// ratio at any breakpoint (mobile vs. desktop, different container shapes).
 export function getCoverSrcSet(path: string, widths: number[], quality = 80): string {
   return buildSrcSet(w => getCoverUrl(path, { width: w, height: w, resize: 'contain', quality }), widths);
 }
 
-export function getMediaSrcSet(path: string, widths: number[], quality = 80): string {
-  return buildSrcSet(w => getMediaUrl(path, { width: w, height: w, resize: 'contain', quality }), widths);
+export function getMediaUrlForWidth(path: string, width: number, quality = 80, aspectRatio?: number): string {
+  return getMediaUrl(path, { ...containBox(width, aspectRatio), resize: 'contain', quality });
+}
+
+export function getMediaSrcSet(path: string, widths: number[], quality = 80, aspectRatio?: number): string {
+  return buildSrcSet(w => getMediaUrlForWidth(path, w, quality, aspectRatio), widths);
+}
+
+// ── Pre-generated derivatives ───────────────────────────────────────────────
+// scripts/generate-derivatives.ts backfills a fixed WebP ladder for each
+// original, stored as plain static files at derivatives/{uuid}/{width}.webp
+// in the same bucket — served directly with no on-the-fly transform, which
+// is both faster (no transform round-trip) and immune to Supabase's
+// transform source-size limit. Callers should treat these as best-effort:
+// fall back to the on-the-fly transform (getMediaUrlForWidth/getMediaSrcSet
+// above) via an <img onError> handler for anything not yet backfilled.
+
+export const MEDIA_WIDTH_LADDER = [480, 768, 1080, 1440, 1920];
+export const COVER_MOBILE_WIDTH_LADDER = [480, 768, 1080, 1440];
+export const COVER_DESKTOP_WIDTH_LADDER = [768, 1080, 1440, 1920];
+
+function derivativePath(originalPath: string, width: number): string {
+  const stem = originalPath.replace(/\.[^./]+$/, '');
+  return `derivatives/${stem}/${width}.webp`;
+}
+
+export function getMediaDerivativeUrl(path: string, width: number): string {
+  return getMediaUrl(derivativePath(path, width));
+}
+
+export function getMediaDerivativeSrcSet(path: string, widths: number[] = MEDIA_WIDTH_LADDER): string {
+  return buildSrcSet(w => getMediaDerivativeUrl(path, w), widths);
+}
+
+export function getCoverDerivativeUrl(path: string, width: number): string {
+  return getCoverUrl(derivativePath(path, width));
+}
+
+export function getCoverDerivativeSrcSet(path: string, widths: number[]): string {
+  return buildSrcSet(w => getCoverDerivativeUrl(path, w), widths);
+}
+
+// ── Auto-generation on upload ───────────────────────────────────────────────
+// Fire-and-forget call to the generate-derivatives Edge Function
+// (supabase/functions/generate-derivatives) so every future upload gets its
+// derivative ladder without ever needing scripts/generate-derivatives.ts run
+// by hand again. Must never throw or block the caller — if this fails for
+// any reason (function not deployed yet, network hiccup, etc.), the
+// aspect-ratio-correct on-the-fly transform fallback already wired into
+// every gallery/cover component covers the gap until the next backfill.
+export function triggerDerivativeGeneration(
+  bucket: 'media' | 'covers',
+  path: string,
+  widths: number[],
+  opts?: { naturalWidth?: number; aspectRatio?: number },
+): void {
+  supabase.functions
+    .invoke('generate-derivatives', { body: { bucket, path, widths, ...opts } })
+    .catch(err => console.warn('[triggerDerivativeGeneration] failed (non-fatal):', err));
 }
 
 // ── Intrinsic size ───────────────────────────────────────────────────────────

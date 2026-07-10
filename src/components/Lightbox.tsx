@@ -1,6 +1,11 @@
 import { useEffect, useCallback, useState } from 'react';
-import { getMediaUrl, getMediaSrcSet } from '../lib/mediaService';
+import {
+  getMediaUrl, getMediaUrlForWidth, getMediaSrcSet,
+  getMediaDerivativeUrl, getMediaDerivativeSrcSet, MEDIA_WIDTH_LADDER,
+} from '../lib/mediaService';
 import type { MediaItem } from '../types';
+
+const LIGHTBOX_MAX_DERIVATIVE_WIDTH = MEDIA_WIDTH_LADDER[MEDIA_WIDTH_LADDER.length - 1]; // 1920 — largest pre-generated size
 
 type Props = {
   items: MediaItem[];
@@ -17,13 +22,20 @@ function Lightbox({ items, index, onClose, onNavigate }: Props) {
   const prev = useCallback(() => { if (index > 0) onNavigate(index - 1); }, [index, onNavigate]);
   const next = useCallback(() => { if (index < items.length - 1) onNavigate(index + 1); }, [index, items.length, onNavigate]);
 
-  // Supabase's image transform rejects source files above its size limit;
-  // fall back to the untransformed URL rather than showing a broken image.
-  // Scoped to the item id it was recorded for, so navigating to a different
-  // item doesn't need an effect to reset it.
-  const [failedItemId, setFailedItemId] = useState<string | undefined>(undefined);
-  const transformFailed = failedItemId === item?.id;
-  const description = (item?.metadata as { description?: string } | undefined)?.description;
+  // Three-tier fallback, same as the grid: pre-generated derivative (fast,
+  // static file, up to 1920px) → on-the-fly transform (still aspect-correct,
+  // higher quality for close viewing) → fully untransformed original
+  // (Supabase's transform endpoint rejects source files above its size
+  // limit, so this is the last resort). Scoped to the item id it was
+  // recorded for, so navigating to a different item doesn't need an effect
+  // to reset it.
+  const [derivativeFailedItemId, setDerivativeFailedItemId] = useState<string | undefined>(undefined);
+  const [transformFailedItemId, setTransformFailedItemId] = useState<string | undefined>(undefined);
+  const derivativeFailed = derivativeFailedItemId === item?.id;
+  const transformFailed = transformFailedItemId === item?.id;
+  const dims = item?.metadata as { width?: number; height?: number; description?: string } | undefined;
+  const aspectRatio = dims?.width && dims?.height ? dims.width / dims.height : undefined;
+  const description = dims?.description;
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -65,13 +77,24 @@ function Lightbox({ items, index, onClose, onNavigate }: Props) {
           />
         ) : (
           <img
-            src={transformFailed ? getMediaUrl(item.storage_path) : getMediaUrl(item.storage_path, { width: 2000, height: 2000, resize: 'contain', quality: 88 })}
-            srcSet={transformFailed ? undefined : getMediaSrcSet(item.storage_path, [1200, 1600, 2000], 88)}
+            src={
+              transformFailed ? getMediaUrl(item.storage_path)
+              : derivativeFailed ? getMediaUrlForWidth(item.storage_path, 1920, 88, aspectRatio)
+              : getMediaDerivativeUrl(item.storage_path, LIGHTBOX_MAX_DERIVATIVE_WIDTH)
+            }
+            srcSet={
+              transformFailed ? undefined
+              : derivativeFailed ? getMediaSrcSet(item.storage_path, [1200, 1600, 1920], 88, aspectRatio)
+              : getMediaDerivativeSrcSet(item.storage_path)
+            }
             sizes="(max-width: 767px) calc(100vw - 88px), calc(100vw - 128px)"
             alt={item.title}
             className="lightbox-img"
             decoding="async"
-            onError={() => setFailedItemId(item.id)}
+            onError={() => {
+              if (!derivativeFailed) setDerivativeFailedItemId(item.id);
+              else setTransformFailedItemId(item.id);
+            }}
           />
         )}
       </div>

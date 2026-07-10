@@ -1,0 +1,4 @@
+project_id = "fgnepakziksbjwetthnm"
+
+[functions.generate-derivatives]
+verify_jwt = true
