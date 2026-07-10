@@ -10,8 +10,8 @@ import Lightbox from './Lightbox';
 // photos with metadata.featured = true. Photos "toggled" featured from an
 // existing gallery (GalleryGrid's ⋮ menu) live in that gallery's node.
 // Photos uploaded directly here have nowhere else to live, so they're filed
-// under one lazily-created, unpublished "Homepage Favorites" node — invisible
-// to visitors, but manageable by the admin like any other gallery if needed.
+// under one lazily-created "Homepage Favorites" node — published so visitors
+// can see them, but manageable by the admin like any other gallery if needed.
 const FAVORITES_SLUG = 'home-favorites';
 
 async function getOrCreateFavoritesNodeId(): Promise<string> {
@@ -31,7 +31,7 @@ async function getOrCreateFavoritesNodeId(): Promise<string> {
       kind: 'gallery',
       parent_id: null,
       sort_order: 9999,
-      is_published: false,
+      is_published: true,
       focal_x: 0.5,
       focal_y: 0.5,
       metadata: {},
@@ -97,7 +97,6 @@ function FeaturedWork() {
       .eq('type', 'photo')
       .eq('metadata->>featured', 'true')
       .order('created_at', { ascending: false })
-      .limit(9)
       .then(({ data, error }) => {
         if (cancelled) return;
         if (!error && data) setItems(data as MediaItem[]);
@@ -172,11 +171,13 @@ function FeaturedWork() {
   }
 
   if (loading) return null;
-  if (!isAdmin && items.length === 0) return null;
 
   return (
     <section className="featured-work">
-      <h2 className="featured-work__title">Featured Work</h2>
+      <h2 className="featured-work__title">
+        Featured Work
+        {isAdmin && <span className="featured-work__count"> ({items.length})</span>}
+      </h2>
 
       {items.length > 0 ? (
         <div className="featured-work__grid">
@@ -193,7 +194,9 @@ function FeaturedWork() {
         </div>
       ) : (
         <p className="featured-work__empty">
-          No favorites yet — feature a photo from any gallery, or upload one directly here.
+          {isAdmin
+            ? 'No favorites yet — feature a photo from any gallery, or upload one directly here.'
+            : 'No favorites yet.'}
         </p>
       )}
 

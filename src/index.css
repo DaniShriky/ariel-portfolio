@@ -1545,6 +1545,13 @@ html {
   margin: 0 0 32px;
 }
 
+.featured-work__count {
+  font-size: 0.5em;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 0.6;
+}
+
 .featured-work__grid {
   columns: 2;
   column-gap: 12px;
