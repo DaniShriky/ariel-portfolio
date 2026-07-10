@@ -2,3 +2,12 @@ project_id = "fgnepakziksbjwetthnm"
 
 [functions.generate-derivatives]
 verify_jwt = true
+
+[functions.youtube-lookup]
+verify_jwt = true
+
+[functions.youtube-storyboard]
+verify_jwt = true
+
+[functions.youtube-cover-capture]
+verify_jwt = true

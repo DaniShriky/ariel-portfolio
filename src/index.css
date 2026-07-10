@@ -1486,6 +1486,134 @@ flex-direction: column;
   }
 }
 
+/* iframe has no intrinsic size like <video>/<img>, so it needs an explicit box */
+.lightbox-youtube {
+  width: min(90vw, 1100px);
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 80px);
+  border: none;
+}
+
+@media (max-width: 767px) {
+  .lightbox-youtube {
+    width: 94vw;
+    max-height: calc(100vh - 100px);
+  }
+}
+
+/* ── YouTube video gallery items ── */
+
+/* background-image div that replaces <img> for a YouTube item's captured
+   cover once a crop has been saved — same technique as .node-img--crop-bg */
+.gallery-img--crop-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gallery-video-badge {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.gallery-video-play {
+  font-size: 1.6rem;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.gallery-video-duration {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  font-size: 0.68rem;
+  letter-spacing: 0.5px;
+  color: white;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* ── Add-media chooser modal ── */
+.add-chooser-actions {
+  flex-direction: column;
+  width: 100%;
+}
+
+.add-chooser-actions .add-category-save {
+  width: 100%;
+}
+
+/* ── Add YouTube video modal ── */
+.youtube-modal-error {
+  font-size: 0.75rem;
+  color: #f87171;
+  margin: -8px 0 0;
+  text-align: center;
+}
+
+.youtube-modal-subtitle {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+  margin: 0;
+}
+
+.youtube-modal-hint {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  margin: 0;
+}
+
+.youtube-modal-timestamp {
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+.youtube-frame-preview {
+  max-width: 100%;
+  background-color: rgba(255, 255, 255, 0.06);
+  background-repeat: no-repeat;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.youtube-frame-scrubber {
+  width: 100%;
+}
+
+.youtube-thumbnail-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.youtube-thumbnail-option {
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: none;
+  cursor: pointer;
+}
+
+.youtube-thumbnail-option img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.youtube-thumbnail-option:hover {
+  border-color: white;
+}
+
 .lightbox-caption {
   position: absolute;
   bottom: 40px;
@@ -1543,6 +1671,7 @@ html {
   text-transform: uppercase;
   color: var(--text-h);
   margin: 0 0 32px;
+  margin-top: -1rem;
 }
 
 .featured-work__count {
@@ -1728,7 +1857,7 @@ html {
   font-size: clamp(1rem, 2.2vw, 1.2rem);
   line-height: 1.8;
   color: rgba(255, 255, 255, 0.85);
-  margin: 0;
+  margin: -1rem;
 }
 
 .home-intro__edit-btn {

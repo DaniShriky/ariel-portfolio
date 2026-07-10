@@ -68,7 +68,15 @@ function Lightbox({ items, index, onClose, onNavigate }: Props) {
       )}
 
       <div className="lightbox-content" onClick={e => e.stopPropagation()}>
-        {item.type === 'video' ? (
+        {item.type === 'video' && item.provider === 'youtube' ? (
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${item.external_id}?autoplay=1`}
+            className="lightbox-video lightbox-youtube"
+            title={item.title}
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        ) : item.type === 'video' ? (
           <video
             src={getMediaUrl(item.storage_path)}
             className="lightbox-video"

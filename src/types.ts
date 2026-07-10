@@ -1,5 +1,6 @@
 export type NodeKind = 'menu' | 'gallery';
 export type MediaType = 'photo' | 'video';
+export type MediaProvider = 'upload' | 'youtube';
 
 export type Node = {
   id: string;
@@ -24,6 +25,8 @@ export type MediaItem = {
   id: string;
   node_id: string;
   type: MediaType;
+  provider: MediaProvider;
+  external_id: string | null;
   title: string;
   storage_path: string;
   focal_x: number;

@@ -20,15 +20,20 @@ import {
   getMediaUrl, getMediaUrlForWidth, getMediaSrcSet,
   getMediaDerivativeUrl, getMediaDerivativeSrcSet, MEDIA_WIDTH_LADDER,
   COVER_MOBILE_WIDTH_LADDER,
-  readImageDimensions, uploadMedia, deleteMedia, uploadCover,
+  readImageDimensions, uploadMedia, deleteMedia, deleteMediaAndDerivatives, uploadCover,
   triggerDerivativeGeneration,
 } from '../lib/mediaService';
+import { computeCropBg } from '../lib/cropDisplay';
+import { formatDuration } from '../lib/youtube';
 import { supabase } from '../lib/supabaseClient';
 import { useAdminMode } from '../context/AdminModeContext';
 import type { MediaItem, Node } from '../types';
 import Lightbox from './Lightbox';
 import DescriptionModal from './DescriptionModal';
 import JustifiedGalleryGrid from './JustifiedGalleryGrid';
+import AddYouTubeVideoModal from './AddYouTubeVideoModal';
+import ChangeCoverFrameModal from './ChangeCoverFrameModal';
+import type { CropData } from './CropEditorModal';
 
 type GalleryLayout = 'collage' | 'justified';
 
@@ -57,30 +62,39 @@ type ItemProps = {
   onSetAsCover: (item: MediaItem) => void;
   onToggleFeatured: (item: MediaItem) => void;
   onEditDescription: (item: MediaItem) => void;
+  onChangeCoverFrame: (item: MediaItem) => void;
   onReposition: (item: MediaItem, newPosition: number) => void;
   onImageClick: () => void;
 };
 
 function SortableGalleryItem({
   item, isAdmin, position, totalCount, positionStyle, sizes, confirmDeleteId, deleting, savingCoverId, savingFeaturedId,
-  onDeleteClick, onDeleteCancel, onDeleteConfirm, onSetAsCover, onToggleFeatured, onEditDescription, onReposition, onImageClick,
+  onDeleteClick, onDeleteCancel, onDeleteConfirm, onSetAsCover, onToggleFeatured, onEditDescription, onChangeCoverFrame, onReposition, onImageClick,
 }: ItemProps) {
-  const dims = item.metadata as { width?: number; height?: number; featured?: boolean; description?: string } | undefined;
+  const dims = item.metadata as {
+    width?: number; height?: number; featured?: boolean; description?: string;
+    crop?: CropData; duration_seconds?: number;
+  } | undefined;
   const isFeatured = !!dims?.featured;
   const isSavingFeatured = savingFeaturedId === item.id;
   const aspectRatio = dims?.width && dims?.height ? dims.width / dims.height : undefined;
+  const isYouTube = item.provider === 'youtube';
 
   const [menuOpen, setMenuOpen] = useState(false);
   // Three-tier fallback: pre-generated derivative (fast, static file) →
   // on-the-fly transform (still aspect-correct, but a live transform) →
   // fully untransformed original (Supabase's transform endpoint rejects
   // source files above its size limit, so this is the last resort for
-  // images that haven't been backfilled with a derivative yet).
+  // images that haven't been backfilled with a derivative yet). Applies to
+  // YouTube captured-frame posters exactly like photos — they're both just
+  // images in the `media` bucket.
   const [derivativeFailed, setDerivativeFailed] = useState(false);
   const [transformFailed, setTransformFailed] = useState(false);
+  const [cropBgStyle, setCropBgStyle] = useState<React.CSSProperties>({});
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
+  const tileRef = useRef<HTMLDivElement | null>(null);
 
   // close menu on outside click
   useEffect(() => {
@@ -90,8 +104,62 @@ function SortableGalleryItem({
     return () => document.removeEventListener('click', close);
   }, [menuOpen]);
 
+  const posterSrc =
+    transformFailed ? getMediaUrl(item.storage_path)
+    : derivativeFailed ? getMediaUrlForWidth(item.storage_path, 1080, 80, aspectRatio)
+    : getMediaDerivativeUrl(item.storage_path, 1080);
+
+  // YouTube posters always carry a saved crop (set at add-time through the
+  // same CropEditorModal used for node covers) — rendered the same
+  // background-image-crop way NodeButton renders a node cover with a saved
+  // crop, via the shared computeCropBg math, so both stay visually
+  // consistent and a saved crop is never silently ignored.
+  useEffect(() => {
+    // No setState here when the guard fails: hasCropDisplay (below) already
+    // gates on dims?.crop directly, so a stale cropBgStyle value is never
+    // read while this condition is false — nothing to reset.
+    if (!isYouTube || !dims?.crop) return;
+    let cancelled = false;
+    let obs: ResizeObserver | null = null;
+    const crop = dims.crop;
+
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const nW = img.naturalWidth;
+      const nH = img.naturalHeight;
+      function recompute() {
+        const el = tileRef.current;
+        if (!el) return;
+        const { width: cW, height: cH } = el.getBoundingClientRect();
+        if (!cW || !cH) return;
+        setCropBgStyle(computeCropBg(posterSrc, crop, nW, nH, cW, cH));
+      }
+      recompute();
+      obs = new ResizeObserver(recompute);
+      if (tileRef.current) obs.observe(tileRef.current);
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      if (!derivativeFailed) setDerivativeFailed(true);
+      else setTransformFailed(true);
+    };
+    img.src = posterSrc;
+
+    return () => { cancelled = true; obs?.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isYouTube, dims?.crop, posterSrc]);
+
+  const hasCropDisplay = isYouTube && !!dims?.crop && Object.keys(cropBgStyle).length > 0;
+  // Collage layout has no explicit positionStyle — a plain <img> gets its
+  // box height from its own intrinsic size (height: auto), but the
+  // background-image crop div has none, so without an explicit ratio here
+  // the tile would collapse to zero height in that layout.
+  const needsAspectRatio = hasCropDisplay && !positionStyle && !!aspectRatio;
+
   const style: React.CSSProperties = {
     ...positionStyle,
+    ...(needsAspectRatio ? { aspectRatio } : {}),
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
@@ -105,12 +173,12 @@ function SortableGalleryItem({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={node => { setNodeRef(node); tileRef.current = node; }}
       style={style}
       className={className}
       onClick={() => { if (!isConfirming && !menuOpen) onImageClick(); }}
     >
-      {item.type === 'video' ? (
+      {item.type === 'video' && !isYouTube ? (
         <video
           src={url}
           className="gallery-video"
@@ -118,13 +186,11 @@ function SortableGalleryItem({
           playsInline
           preload="metadata"
         />
+      ) : hasCropDisplay ? (
+        <div className="gallery-img gallery-img--crop-bg" style={cropBgStyle} />
       ) : (
         <img
-          src={
-            transformFailed ? url
-            : derivativeFailed ? getMediaUrlForWidth(item.storage_path, 1080, 80, aspectRatio)
-            : getMediaDerivativeUrl(item.storage_path, 1080)
-          }
+          src={posterSrc}
           srcSet={
             transformFailed ? undefined
             : derivativeFailed ? getMediaSrcSet(item.storage_path, MEDIA_WIDTH_LADDER, 80, aspectRatio)
@@ -139,6 +205,15 @@ function SortableGalleryItem({
           decoding="async"
           onError={() => { if (!derivativeFailed) setDerivativeFailed(true); else setTransformFailed(true); }}
         />
+      )}
+
+      {isYouTube && (
+        <div className="gallery-video-badge">
+          <span className="gallery-video-play">▶</span>
+          {typeof dims?.duration_seconds === 'number' && (
+            <span className="gallery-video-duration">{formatDuration(dims.duration_seconds)}</span>
+          )}
+        </div>
       )}
 
       {dims?.description && (
@@ -202,6 +277,13 @@ function SortableGalleryItem({
                   >
                     {dims?.description ? 'Edit description' : 'Add description'}
                   </button>
+                  {isYouTube && (
+                    <button
+                      onClick={() => { setMenuOpen(false); onChangeCoverFrame(item); }}
+                    >
+                      Change cover frame
+                    </button>
+                  )}
                   <button
                     className="danger"
                     onClick={() => { setMenuOpen(false); onDeleteClick(item.id); }}
@@ -249,6 +331,9 @@ function GalleryGrid({ node }: Props) {
   const [editingDescriptionItem, setEditingDescriptionItem] = useState<MediaItem | null>(null);
   const [savingDescription, setSavingDescription] = useState(false);
   const [localLayout, setLocalLayout]         = useState<GalleryLayout | null>(null);
+  const [showAddChooser, setShowAddChooser]   = useState(false);
+  const [showYouTubeModal, setShowYouTubeModal] = useState(false);
+  const [changingCoverItem, setChangingCoverItem] = useState<MediaItem | null>(null);
 
   // Not an admin-configurable/persisted setting — every gallery always
   // starts from this same computed rule (Street's galleries default to
@@ -364,7 +449,15 @@ function GalleryGrid({ node }: Props) {
   async function handleDeleteConfirm(item: MediaItem) {
     setDeleting(true);
     try {
-      await deleteMedia(item.storage_path);
+      // YouTube-captured cover frames are re-captured (and re-derivatived)
+      // far more often per item than a photo upload ever is — every scrub /
+      // re-pick during the add flow produces a new file — so their
+      // derivatives are swept too, on top of the file itself.
+      if (item.provider === 'youtube') {
+        await deleteMediaAndDerivatives(item.storage_path);
+      } else {
+        await deleteMedia(item.storage_path);
+      }
       const { error } = await supabase.from('media_items').delete().eq('id', item.id);
       if (error) throw error;
       setItems(prev => prev.filter(i => i.id !== item.id));
@@ -477,6 +570,7 @@ function GalleryGrid({ node }: Props) {
         onSetAsCover={handleSetAsCover}
         onToggleFeatured={handleToggleFeatured}
         onEditDescription={setEditingDescriptionItem}
+        onChangeCoverFrame={setChangingCoverItem}
         onReposition={handleReposition}
         onImageClick={() => setLightboxIndex(idx)}
       />
@@ -522,9 +616,9 @@ function GalleryGrid({ node }: Props) {
         <>
           <button
             className={`add-floating-btn${uploadingCount > 0 ? ' add-floating-btn--busy' : ''}`}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowAddChooser(true)}
             disabled={uploadingCount > 0}
-            title="Add images"
+            title="Add media"
           >
             {uploadingCount > 0 ? uploadingCount : '+'}
           </button>
@@ -537,6 +631,51 @@ function GalleryGrid({ node }: Props) {
             onChange={handleFilesSelected}
           />
         </>
+      )}
+
+      {showAddChooser && (
+        <div className="modal-backdrop" onClick={() => setShowAddChooser(false)}>
+          <div className="modal-panel" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">Add media</p>
+            <div className="add-category-actions add-chooser-actions">
+              <button
+                className="add-category-save"
+                onClick={() => { setShowAddChooser(false); fileInputRef.current?.click(); }}
+              >
+                Upload files
+              </button>
+              <button
+                className="add-category-save"
+                onClick={() => { setShowAddChooser(false); setShowYouTubeModal(true); }}
+              >
+                Add YouTube video
+              </button>
+            </div>
+            <div className="add-category-actions">
+              <button className="add-category-cancel" onClick={() => setShowAddChooser(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showYouTubeModal && (
+        <AddYouTubeVideoModal
+          nodeId={nodeId}
+          baseSortOrder={items.length > 0 ? Math.max(...items.map(i => i.sort_order)) + 1 : 0}
+          onSaved={item => { setItems(prev => [...prev, item]); setShowYouTubeModal(false); }}
+          onCancel={() => setShowYouTubeModal(false)}
+        />
+      )}
+
+      {changingCoverItem && (
+        <ChangeCoverFrameModal
+          item={changingCoverItem}
+          onSaved={updated => {
+            setItems(prev => prev.map(i => i.id === updated.id ? updated : i));
+            setChangingCoverItem(null);
+          }}
+          onCancel={() => setChangingCoverItem(null)}
+        />
       )}
 
       {lightboxIndex !== null && (

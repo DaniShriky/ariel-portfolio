@@ -168,6 +168,23 @@ export async function deleteMedia(path: string): Promise<void> {
   if (error) throw error;
 }
 
+// Same as deleteMedia, but also sweeps the derivatives/{stem}/*.webp ladder
+// generated for that path. Used for YouTube-captured cover frames, which are
+// created and discarded far more often than a photo upload (every scrub /
+// re-pick / cancel produces a new candidate file) — leaving their
+// derivatives behind would accumulate orphaned storage much faster than the
+// existing (unswept) photo-upload path does. Listing failures are treated as
+// "no derivatives to clean up" rather than fatal, since the caller is
+// already in a best-effort cleanup path (cancel/failure/replace).
+export async function deleteMediaAndDerivatives(path: string): Promise<void> {
+  const stem = path.replace(/\.[^./]+$/, '');
+  const folder = `derivatives/${stem}`;
+  const { data: files } = await supabase.storage.from(MEDIA).list(folder);
+  const derivativePaths = (files ?? []).map(f => `${folder}/${f.name}`);
+  const { error } = await supabase.storage.from(MEDIA).remove([path, ...derivativePaths]);
+  if (error) throw error;
+}
+
 // ── Replace ──────────────────────────────────────────────────────────────────
 
 export async function replaceCover(oldPath: string, file: File): Promise<string> {
